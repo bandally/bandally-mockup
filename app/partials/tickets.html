@@ -1,0 +1,9 @@
+<h2>最新のチケット</h2>
+<p><button class="btn btn-primary btn-lg" ng-click="tickets.add()">チケットを登録する</button></p>
+<ul>
+  <li ng-repeat="ticket in tickets.tickets">
+    <p>{{ ticket.destination }}</p>
+    <p>{{ ticket.departureDate }}</p>
+    <p>{{ ticket.arrivedDate }}</p>
+  </li>
+</ul>
