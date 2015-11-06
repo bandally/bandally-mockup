@@ -1,0 +1,83 @@
+.hv-center {
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  -webkit-transform: translate(-50%, -50%);
+      -ms-transform: translate(-50%, -50%);
+          transform: translate(-50%, -50%);
+}
+
+body {
+  font-family: proxima-nova, "Helvetica Neue Light", "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif;
+  font-size: 16px;
+  padding-top: 50px;
+}
+
+.header {
+  background: rgba(255, 255, 255, 0.25);
+  height: 50px;
+  left: 0;
+  overflow: hidden;
+  padding: 10px 40px;
+  position: fixed;
+  top: 0;
+  width: 100%;
+}
+
+.header h1 {
+  float: left;
+  font-size: 2.4rem;
+  height: 100%;
+  margin: 0;
+}
+
+.header h1 a, .header h1 a:hover {
+  color: #fff;
+  display: block;
+  height: 100%;
+  text-decoration: none;
+}
+
+.header h1 img {
+  height: 100%;
+  width: auto;
+}
+
+.header .login-user {
+  float: right;
+  height: 100%;
+}
+
+.header .login-user img {
+  max-height: 100%;
+  width: auto;
+}
+
+.footer {
+  background: #333;
+  color: #fff;
+  padding: 20px;
+  text-align: center;
+}
+
+.hero-unit {
+  background: url(../images/pic_3.jpg) no-repeat center bottom/cover;
+  color: #fff;
+  margin-top: -50px;
+  min-height: 100vh;
+  position: relative;
+}
+
+.hero-unit .lead {
+  font-size: 4rem;
+  text-align: center;
+  text-shadow: 0 0 4px black;
+}
+
+.hero-unit form {
+  text-align: center;
+}
+
+.header {
+  z-index: 1;
+}
