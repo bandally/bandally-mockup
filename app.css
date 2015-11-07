@@ -8,6 +8,7 @@
 }
 
 body {
+  background: #eee;
   font-family: proxima-nova, "Helvetica Neue Light", "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif;
   font-size: 16px;
   padding-top: 50px;
@@ -32,7 +33,6 @@ body {
 }
 
 .header h1 a, .header h1 a:hover {
-  color: #fff;
   display: block;
   height: 100%;
   text-decoration: none;
@@ -60,6 +60,11 @@ body {
   text-align: center;
 }
 
+.content {
+  display: block;
+  padding: 0 40px;
+}
+
 .hero-unit {
   background: url(../images/pic_3.jpg) no-repeat center bottom/cover;
   color: #fff;
@@ -76,6 +81,14 @@ body {
 
 .hero-unit form {
   text-align: center;
+}
+
+.page-login .header a, .page-login .header a:hover {
+  color: #fff;
+}
+
+.page-login .content {
+  padding: 0;
 }
 
 .header {
