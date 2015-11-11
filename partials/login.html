@@ -1,11 +1,26 @@
 <div class="hero-unit">
   <div class="hv-center">
     <p class="lead">世界と友達になろう。</p>
-    <form action="#" ng-if="!login.auth">
-      <button class="btn btn-primary btn-lg" ng-click="login.fbLogin()">
-        <i class="fa fa-facebook fa-lg"></i>
-        Facebookでログインする
-      </button>
-    </form>
+    <!-- <form action="#" ng-if="!login.auth"> -->
+      <div class="form-group text-center">
+        <button class="btn btn-primary btn-lg" ng-click="login.fbLogin()">
+          <i class="fa fa-facebook fa-lg"></i>
+          Facebookでログイン
+        </button>
+      </div>
+      <!-- <hr>
+      <div class="form-group">
+        <input type="text" class="form-control" placeholder="E-mail" ng-model="login.mailAddress">
+      </div>
+      <div class="form-group">
+        <input type="password" class="form-control" placeholder="Password" ng-model="login.password">
+      </div>
+      <div class="form-group">
+        <button class="btn btn-success btn-block" ng-click="login.mailLogin()">
+          <i class="fa fa-envelope fa-lg"></i>
+          メールアドレスでログイン
+        </button>
+      </div> -->
+    <!-- </form> -->
   </div>
 </div>

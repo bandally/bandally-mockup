@@ -28,6 +28,7 @@ body {
 .header h1 {
   float: left;
   font-size: 2.4rem;
+  font-variant: small-caps;
   height: 100%;
   margin: 0;
 }
@@ -65,6 +66,26 @@ body {
   padding: 0 40px;
 }
 
+.global-navi {
+  background: #333;
+  color: #fff;
+}
+
+.global-navi ul {
+  list-style-type: none;
+  padding: 0;
+}
+
+.global-navi li {
+  display: inline-block;
+}
+
+.global-navi a {
+  color: #fff;
+  display: block;
+  padding: 10px 40px;
+}
+
 .hero-unit {
   background: url(../images/pic_3.jpg) no-repeat center bottom/cover;
   color: #fff;
@@ -83,12 +104,25 @@ body {
   text-align: center;
 }
 
+.angular-google-map-container {
+  height: 500px;
+}
+
 .page-login .header a, .page-login .header a:hover {
   color: #fff;
 }
 
 .page-login .content {
   padding: 0;
+}
+
+.page-login .hero-unit form {
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  margin: 0 auto;
+  padding: 20px;
+  width: 280px;
 }
 
 .header {
