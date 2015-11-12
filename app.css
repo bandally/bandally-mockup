@@ -87,7 +87,7 @@ body {
 }
 
 .hero-unit {
-  background: url(../images/pic_3.jpg) no-repeat center bottom/cover;
+  background: url(images/pic_3.jpg) no-repeat center bottom/cover;
   color: #fff;
   margin-top: -50px;
   min-height: 100vh;
