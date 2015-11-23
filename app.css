@@ -73,6 +73,7 @@ body {
 
 .global-navi ul {
   list-style-type: none;
+  margin: 0;
   padding: 0;
 }
 
@@ -104,8 +105,43 @@ body {
   text-align: center;
 }
 
-.angular-google-map-container {
-  height: 500px;
+.list-with-photo {
+  padding: 20px;
+}
+
+.list-with-photo ul {
+  list-style-type: none;
+  overflow: hidden;
+  padding: 0;
+}
+
+.list-with-photo li {
+  float: left;
+  margin: 0 0 20px 20px;
+  width: calc(50% - 10px);
+}
+
+.list-with-photo li:nth-child(2n+1) {
+  margin-left: 0;
+}
+
+.list-with-photo a {
+  background: transparent no-repeat center center / cover;
+  display: block;
+  height: 0;
+  padding-top: 100%;
+  position: relative;
+  width: 100%;
+}
+
+.list-with-photo span {
+  background: rgba(0, 0, 0, 0.5);
+  bottom: 0;
+  color: #fff;
+  left: 0;
+  padding: 10px;
+  position: absolute;
+  width: 100%;
 }
 
 .page-login .header a, .page-login .header a:hover {
@@ -123,6 +159,28 @@ body {
   margin: 0 auto;
   padding: 20px;
   width: 280px;
+}
+
+.page-spots .content {
+  overflow: hidden;
+  padding: 0;
+}
+
+.page-spots .map-section {
+  float: left;
+  width: 50%;
+}
+
+.page-spots .map-section .angular-google-map-container {
+  height: 500px;
+}
+
+.page-spots .list-section {
+  background: #fff;
+  float: right;
+  height: 500px;
+  overflow: auto;
+  width: 50%;
 }
 
 .header {
