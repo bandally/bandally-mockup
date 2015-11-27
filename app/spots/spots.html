@@ -6,7 +6,7 @@
 <div class="list-section list-with-photo">
   <ul>
     <li ng-repeat="spot in spots.markers">
-      <a href="#" style="background-image: url({{ spot.photos[0].url }});">
+      <a ui-sref="hosts({ userId: 'yosket87' })" style="background-image: url({{ spot.photos[0].url }});">
         <span>{{ spot.name }}</span>
       </a>
     </li>

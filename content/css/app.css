@@ -88,7 +88,7 @@ body {
 }
 
 .hero-unit {
-  background: url(images/pic_3.jpg) no-repeat center bottom/cover;
+  background: url(../img/pic_3.jpg) no-repeat center bottom/cover;
   color: #fff;
   margin-top: -50px;
   min-height: 100vh;
@@ -168,7 +168,7 @@ body {
 
 .page-spots .map-section {
   float: left;
-  width: 50%;
+  width: 65%;
 }
 
 .page-spots .map-section .angular-google-map-container {
@@ -180,7 +180,18 @@ body {
   float: right;
   height: 500px;
   overflow: auto;
-  width: 50%;
+  width: 35%;
+}
+
+.page-hosts .carousel {
+  height: 500px;
+  margin: 0 -40px 20px;
+  width: calc(100% + 80px);
+}
+
+.page-hosts .carousel li img {
+  height: auto;
+  width: 100%;
 }
 
 .header {
