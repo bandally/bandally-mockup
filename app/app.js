@@ -146,62 +146,6 @@
 (function () {
   'use strict';
 
-  angular.module('app').controller('HomeController', HomeController);
-
-  HomeController.$inject = ['$rootScope', '$state', 'currentAuth', 'user'];
-
-  function HomeController($rootScope, $state, currentAuth, user) {
-
-    var vm = this;
-    vm.me = currentAuth;
-
-    activate();
-
-    function activate() {
-      $rootScope.$on('$stateChangeSuccess', checkUserData);
-      getFavorites();
-    }
-
-    function checkUserData() {
-      var userData = user.get(currentAuth.uid);
-      if (_.isUndefined(userData.name) || _.isUndefined(userData.email)) {
-        $state.go('account');
-      }
-    }
-
-    function getFavorites() {
-      // console.log(user.get(currentAuth.uid));
-      // user.get(currentAuth)
-    }
-  }
-})();
-
-(function () {
-  'use strict';
-
-  angular.module('app.home').config(route);
-
-  route.$inject = ['$stateProvider'];
-
-  function route($stateProvider) {
-    $stateProvider
-      .state('home', {
-        url: '/home',
-        controller: 'HomeController',
-        controllerAs: 'home',
-        templateUrl: 'app/home/home.html',
-        resolve: {
-          currentAuth: ['auth', function (auth) {
-            return auth.firebase.$requireAuth();
-          }]
-        }
-      });
-  }
-})();
-
-(function () {
-  'use strict';
-
   angular.module('app.core').factory('account', account);
 
   account.$inject = ['$firebaseArray', '$firebaseObject', 'config'];
@@ -335,7 +279,6 @@
 
       // トークンでログイン可能かチェック
       auth.firebase.$authWithOAuthToken('facebook', token).then(function (authData) {
-        console.log(authData);
         putToken(authData.facebook.accessToken);
         return $state.go('home');
       }).catch(function (error) {
@@ -428,11 +371,12 @@
     function fbLoginSuccess(authData) {
       putToken(authData.token);
       account.save(authData.uid, authData).then(function (ref) {
-        console.log(user.get('aaa'));
-        if (_.isNull(user.get(authData.uid).$value)) {
-          $state.go('home');
-          return;
+
+        // すでにusersに登録があればホームに遷移
+        if (!_.isNull(user.get(authData.uid).$value)) {
+          return $state.go('home');
         }
+
         var userData = {};
         userData.name = authData.facebook.email ? authData.facebook.email.split('@')[0] : null;
         userData.fullName = authData.facebook.displayName || null;
@@ -616,6 +560,63 @@
         }
       };
     }
+  }
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app').controller('HomeController', HomeController);
+
+  HomeController.$inject = ['$scope', '$state', 'currentAuth', 'user'];
+
+  function HomeController($scope, $state, currentAuth, user) {
+
+    var vm = this;
+    vm.me = currentAuth;
+
+    activate();
+
+    function activate() {
+      $scope.$on('$stateChangeSuccess', checkUserData);
+      getFavorites();
+    }
+
+    function checkUserData() {
+      user.get(currentAuth.uid).$loaded().then(function (userData) {
+        if (_.isUndefined(userData.name) || _.isUndefined(userData.email)) {
+          return $state.go('account');
+        }
+      });
+    }
+
+    function getFavorites() {
+      // console.log(user.get(currentAuth.uid));
+      // user.get(currentAuth)
+    }
+  }
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app.home').config(route);
+
+  route.$inject = ['$stateProvider'];
+
+  function route($stateProvider) {
+    $stateProvider
+      .state('home', {
+        url: '/home',
+        controller: 'HomeController',
+        controllerAs: 'home',
+        templateUrl: 'app/home/home.html',
+        resolve: {
+          currentAuth: ['auth', function (auth) {
+            return auth.firebase.$requireAuth();
+          }]
+        }
+      });
   }
 })();
 
