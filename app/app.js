@@ -91,12 +91,31 @@
 
     var vm = this;
     vm.me = currentAuth;
+    vm.update = update;
 
     activate();
 
     function activate() {
-      vm.name = currentAuth.facebook.displayName;
-      vm.email = currentAuth.facebook.email;
+      user.get(currentAuth.uid).$loaded().then(function (userData) {
+        vm.name = userData.name || '';
+        vm.fullName = userData.fullName || '';
+        vm.email = userData.email || '';
+        vm.gender = userData.gender || '';
+      });
+    }
+
+    function update() {
+      var key = currentAuth.uid;
+      var updateData = {
+        name: vm.name,
+        fullName: vm.fullName,
+        email: vm.email,
+        gender: vm.gender,
+        imageUrl: currentAuth.facebook.profileImageURL
+      };
+      user.save(key, updateData).then(function (ref) {
+        console.log('Update Success!');
+      });
     }
   }
 })();
@@ -115,6 +134,62 @@
         controller: 'AccountController',
         controllerAs: 'account',
         templateUrl: 'app/account/account.html',
+        resolve: {
+          currentAuth: ['auth', function (auth) {
+            return auth.firebase.$requireAuth();
+          }]
+        }
+      });
+  }
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app').controller('HomeController', HomeController);
+
+  HomeController.$inject = ['$rootScope', '$state', 'currentAuth', 'user'];
+
+  function HomeController($rootScope, $state, currentAuth, user) {
+
+    var vm = this;
+    vm.me = currentAuth;
+
+    activate();
+
+    function activate() {
+      $rootScope.$on('$stateChangeSuccess', checkUserData);
+      getFavorites();
+    }
+
+    function checkUserData() {
+      var userData = user.get(currentAuth.uid);
+      if (_.isUndefined(userData.name) || _.isUndefined(userData.email)) {
+        $state.go('account');
+      }
+    }
+
+    function getFavorites() {
+      // console.log(user.get(currentAuth.uid));
+      // user.get(currentAuth)
+    }
+  }
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app.home').config(route);
+
+  route.$inject = ['$stateProvider'];
+
+  function route($stateProvider) {
+    $stateProvider
+      .state('home', {
+        url: '/home',
+        controller: 'HomeController',
+        controllerAs: 'home',
+        templateUrl: 'app/home/home.html',
         resolve: {
           currentAuth: ['auth', function (auth) {
             return auth.firebase.$requireAuth();
@@ -247,7 +322,7 @@
 
       // ログイン済みの場合はトークンを更新してリターン
       if (!_.isNull(authData)) {
-        putToken(authData.token);
+        putToken(authData.facebook.accessToken);
         return $state.go('home');
       }
 
@@ -260,7 +335,8 @@
 
       // トークンでログイン可能かチェック
       auth.firebase.$authWithOAuthToken('facebook', token).then(function (authData) {
-        putToken(authData.token);
+        console.log(authData);
+        putToken(authData.facebook.accessToken);
         return $state.go('home');
       }).catch(function (error) {
         return $state.go('spots');
@@ -352,6 +428,11 @@
     function fbLoginSuccess(authData) {
       putToken(authData.token);
       account.save(authData.uid, authData).then(function (ref) {
+        console.log(user.get('aaa'));
+        if (_.isNull(user.get(authData.uid).$value)) {
+          $state.go('home');
+          return;
+        }
         var userData = {};
         userData.name = authData.facebook.email ? authData.facebook.email.split('@')[0] : null;
         userData.fullName = authData.facebook.displayName || null;
@@ -524,10 +605,6 @@
           var userRef = ref.child(id);
           return $firebaseObject(userRef);
         },
-        getMe: function () {
-          var meRef = ref.child($rootScope.statuses.userId);
-          return $firebaseObject(meRef);
-        },
         add: function (data) {
           return $firebaseArray(ref).$add(data);
         },
@@ -539,54 +616,6 @@
         }
       };
     }
-  }
-})();
-
-(function () {
-  'use strict';
-
-  angular.module('app').controller('HomeController', HomeController);
-
-  HomeController.$inject = ['currentAuth', 'user'];
-
-  function HomeController(currentAuth, user) {
-
-    var vm = this;
-    vm.me = currentAuth;
-
-    activate();
-
-    function activate() {
-      getFavorites();
-    }
-
-    function getFavorites() {
-      console.log(user.getMe(currentAuth.uid));
-      // user.get(currentAuth)
-    }
-  }
-})();
-
-(function () {
-  'use strict';
-
-  angular.module('app.home').config(route);
-
-  route.$inject = ['$stateProvider'];
-
-  function route($stateProvider) {
-    $stateProvider
-      .state('home', {
-        url: '/home',
-        controller: 'HomeController',
-        controllerAs: 'home',
-        templateUrl: 'app/home/home.html',
-        resolve: {
-          currentAuth: ['auth', function (auth) {
-            return auth.firebase.$requireAuth();
-          }]
-        }
-      });
   }
 })();
 
@@ -650,9 +679,9 @@
     };
   }
 
-  HeaderController.$inject = ['$state', 'auth'];
+  HeaderController.$inject = ['$cookies', '$state', 'auth'];
 
-  function HeaderController($state, auth) {
+  function HeaderController($cookies, $state, auth) {
 
     var vm = this;
     vm.auth = {};
@@ -667,10 +696,8 @@
     }
 
     function logout() {
-      if (!confirm('ログアウトします')) {
-        return;
-      }
       auth.firebase.$unauth();
+      $cookies.remove('bandally');
       $state.go('spots');
     }
   }
