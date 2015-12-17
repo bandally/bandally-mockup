@@ -1,14 +1,29 @@
-<div class="map-section">
-  <ui-gmap-google-map center="spots.map.center" zoom="spots.map.zoom" draggable="true">
-    <ui-gmap-markers models="spots.markers" coords="'self'" icon="'icon'"></ui-gmap-markers>
-  </ui-gmap-google-map>
-</div>
-<div class="list-section list-with-photo">
+<!-- <section class="search-section well">
+  <form class="form-inline">
+    <div class="form-group">
+      <label class="checkbox-inline" ng-repeat="language in spots.languages track by $index">
+        <input type="checkbox" value="{{ language.$id }}" ng-model="language.checked" ng-change="spots.getSpots()"> {{ language.$value }}
+      </label>
+    </div>
+  </form>
+</section> -->
+<section class="list-section list-with-photo">
   <ul>
-    <li ng-repeat="spot in spots.markers">
+    <li ng-repeat="spot in spots.markers track by $index">
       <a ui-sref="hosts({ userId: 'yosket87' })" style="background-image: url({{ spot.photos[0].url }});">
-        <span>{{ spot.name }}</span>
+        <span style="background-image: url({{ spot.photos[0].user.imageUrl }})"></span>
       </a>
     </li>
   </ul>
-</div>
+  <p class="no-item text-muted" ng-if="!spots.markers.length">Not found.</p>
+</section>
+<section class="map-section map-canvas">
+  <ui-gmap-google-map center="spots.map.center" pan="true" zoom="spots.map.zoom" control="spots.control" refresh="spots.refresh" events="spots.map.events" dragging="spots.map.dragging">
+    <ui-gmap-search-box template="spots.searchbox.template" events="spots.searchbox.events" position="spots.searchbox.position" options="spots.searchbox.options"></ui-gmap-search-box>
+    <ui-gmap-markers models="spots.markers" coords="'self'">
+      <ui-gmap-windows>
+        <a ui-sref="hosts({ userId: 'yosket87' })"><img alt="" class="map-window-image" src="{{ photos[0].url }}" ng-non-bindable></a>
+      </ui-gmap-windows>
+    </ui-gmap-markers>
+  </ui-gmap-google-map>
+</section>

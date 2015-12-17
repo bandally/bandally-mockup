@@ -1,3 +1,7 @@
+.nav, .pagination, .carousel, .panel-title a {
+  cursor: pointer;
+}
+
 .hv-center {
   left: 50%;
   position: absolute;
@@ -7,57 +11,50 @@
           transform: translate(-50%, -50%);
 }
 
+.loading {
+  padding: 20px;
+  text-align: center;
+}
+
+html {
+  height: 100%;
+}
+
 body {
   background: #eee;
   font-family: proxima-nova, "Helvetica Neue Light", "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif;
   font-size: 16px;
-  padding-top: 50px;
+  padding-top: 58px;
 }
 
 .header {
-  background: rgba(255, 255, 255, 0.25);
-  height: 50px;
-  left: 0;
-  overflow: hidden;
-  padding: 10px 40px;
-  position: fixed;
-  top: 0;
-  width: 100%;
+  font-size: 12px;
+  height: 58px;
 }
 
-.header h1 {
-  float: left;
-  font-size: 2.4rem;
-  font-variant: small-caps;
-  height: 100%;
+.header img {
+  max-height: 27px;
+}
+
+.header .badge {
+  background-color: #d9534f;
+  vertical-align: top;
+}
+
+.header .login-btns {
+  padding: 15px;
+}
+
+.header .navbar-nav > li > a {
+  line-height: 28px;
+}
+
+.footer p {
+  background: #fff;
+  border-top: 1px solid #ccc;
+  font-size: 10px;
   margin: 0;
-}
-
-.header h1 a, .header h1 a:hover {
-  display: block;
-  height: 100%;
-  text-decoration: none;
-}
-
-.header h1 img {
-  height: 100%;
-  width: auto;
-}
-
-.header .login-user {
-  float: right;
-  height: 100%;
-}
-
-.header .login-user img {
-  max-height: 100%;
-  width: auto;
-}
-
-.footer {
-  background: #333;
-  color: #fff;
-  padding: 20px;
+  padding: 5px;
   text-align: center;
 }
 
@@ -90,7 +87,7 @@ body {
 .hero-unit {
   background: url(../img/pic_3.jpg) no-repeat center bottom/cover;
   color: #fff;
-  margin-top: -50px;
+  margin-top: -58px;
   min-height: 100vh;
   position: relative;
 }
@@ -105,8 +102,9 @@ body {
   text-align: center;
 }
 
-.list-with-photo {
-  padding: 20px;
+.map-canvas .map-window-image {
+  height: auto;
+  max-width: 120px;
 }
 
 .list-with-photo ul {
@@ -117,12 +115,7 @@ body {
 
 .list-with-photo li {
   float: left;
-  margin: 0 0 20px 20px;
-  width: calc(50% - 10px);
-}
-
-.list-with-photo li:nth-child(2n+1) {
-  margin-left: 0;
+  width: 50%;
 }
 
 .list-with-photo a {
@@ -135,13 +128,72 @@ body {
 }
 
 .list-with-photo span {
-  background: rgba(0, 0, 0, 0.5);
-  bottom: 0;
-  color: #fff;
-  left: 0;
-  padding: 10px;
+  background: no-repeat center center / cover;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  bottom: 10px;
+  height: 40px;
+  overflow: hidden;
   position: absolute;
-  width: 100%;
+  right: 10px;
+  width: 40px;
+}
+
+.chat .message {
+  margin: 20px 0;
+  text-align: left;
+}
+
+.chat .message .avator {
+  background: transparent no-repeat center center / cover;
+  border-radius: 50%;
+  display: inline-block;
+  height: 60px;
+  margin-right: 20px;
+  vertical-align: top;
+  width: 60px;
+}
+
+.chat .message .text {
+  background: #fff;
+  border-radius: 1em;
+  box-shadow: 0 0 6px #B2B2B2;
+  display: inline-block;
+  max-width: calc(100% - 85px);
+  padding: 10px 18px;
+  position: relative;
+}
+
+.chat .message .text:before {
+  background: #fff;
+  box-shadow: -2px 2px 2px 0 rgba(178, 178, 178, 0.4);
+  content: '\00a0';
+  display: block;
+  height: 16px;
+  left: -9px;
+  position: absolute;
+  top: 11px;
+  -webkit-transform: rotate(29deg) skew(-35deg);
+      -ms-transform: rotate(29deg) skew(-35deg);
+          transform: rotate(29deg) skew(-35deg);
+  width: 20px;
+}
+
+.chat .message.me {
+  text-align: right;
+}
+
+.chat .message.me .text {
+  background: #ccf;
+  max-width: 100%;
+  text-align: left;
+}
+
+.chat .message.me .text:before {
+  background: #ccf;
+  box-shadow: 2px -2px 2px 0 rgba(178, 178, 178, 0.4);
+  left: auto;
+  right: -9px;
 }
 
 .page-login .header a, .page-login .header a:hover {
@@ -161,37 +213,144 @@ body {
   width: 280px;
 }
 
+.page-spots {
+  height: 100%;
+}
+
 .page-spots .content {
+  height: calc(100% - 25px);
   overflow: hidden;
   padding: 0;
 }
 
-.page-spots .map-section {
-  float: left;
-  width: 65%;
-}
-
-.page-spots .map-section .angular-google-map-container {
-  height: 500px;
+.page-spots .search-section {
+  margin: 20px;
 }
 
 .page-spots .list-section {
   background: #fff;
   float: right;
-  height: 500px;
+  height: 100%;
+  max-width: 360px;
   overflow: auto;
   width: 35%;
 }
 
+.page-spots .list-section .no-item {
+  color: #ccc;
+  margin: 20px;
+  text-align: center;
+}
+
+.page-spots .map-section {
+  height: 100%;
+  overflow: hidden;
+}
+
+.page-spots .map-section .angular-google-map-container .searchbox {
+  margin: 10px;
+  direction: ltr;
+  overflow: hidden;
+  position: relative;
+  color: #565656;
+  font-family: Roboto, Arial, sans-serif;
+  -webkit-user-select: none;
+  font-size: 11px;
+  padding: 8px;
+  border: 0;
+  border-radius: 2px;
+  -webkit-background-clip: padding-box;
+  box-shadow: rgba(0, 0, 0, 0.298039) 0px 1px 4px -1px;
+  min-width: 44px;
+  background-color: white;
+  background-clip: padding-box;
+  min-width: 360px;
+}
+
 .page-hosts .carousel {
-  height: 500px;
   margin: 0 -40px 20px;
+  position: relative;
+}
+
+.page-hosts .carousel ul {
+  height: 500px;
+  margin: 0;
   width: calc(100% + 80px);
 }
 
-.page-hosts .carousel li img {
+.page-hosts .carousel ul li img {
   height: auto;
+  vertical-align: top;
   width: 100%;
+}
+
+.page-hosts .carousel .custom-indicator {
+  background: -webkit-linear-gradient(top, transparent, rgba(0, 0, 0, 0.8));
+  background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.8));
+  bottom: 0;
+  left: 0;
+  padding: 100px 10px 10px;
+  position: absolute;
+  text-align: center;
+  width: 100%;
+}
+
+.page-hosts .carousel .custom-indicator div {
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-block;
+  height: 60px;
+  margin: 0 10px;
+  -webkit-transition: all .3s;
+  transition: all .3s;
+  width: 80px;
+}
+
+.page-hosts .carousel .custom-indicator div.active {
+  -webkit-transform: scale(1.2);
+      -ms-transform: scale(1.2);
+          transform: scale(1.2);
+}
+
+.page-room .users {
+  background: transparent no-repeat center center / cover;
+  margin: 0 -40px 20px;
+  text-align: center;
+}
+
+.page-room .users .guest, .page-room .users .host {
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: 8px;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+  display: inline-block;
+  margin: 20px 0;
+  overflow: hidden;
+  padding: 0 20px 20px;
+}
+
+.page-room .users .guest .page-header, .page-room .users .host .page-header {
+  margin: 20px 0;
+}
+
+.page-room .users .guest .avator, .page-room .users .host .avator {
+  background: transparent no-repeat center center / cover;
+  border-radius: 50%;
+  height: 120px;
+  margin: 0 auto 10px;
+  width: 120px;
+}
+
+.page-room .chat {
+  padding: 20px;
+}
+
+.page-room .chat .me {
+  margin-right: 20px;
+}
+
+.page-room .chat .input-area textarea {
+  margin-bottom: 10px;
 }
 
 .header {
