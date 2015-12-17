@@ -9,6 +9,7 @@
     'ui.router',
     'ui.bootstrap',
     'uiGmapgoogle-maps',
+    'toastr',
     'ui.calendar',
     'firebase',
     'app.layout',
@@ -85,9 +86,9 @@
 
   angular.module('app').controller('AccountController', AccountController);
 
-  AccountController.$inject = ['currentAuth', 'user'];
+  AccountController.$inject = ['currentAuth', 'toastr', 'user'];
 
-  function AccountController(currentAuth, user) {
+  function AccountController(currentAuth, toastr, user) {
 
     var vm = this;
     vm.me = currentAuth;
@@ -114,7 +115,7 @@
         imageUrl: currentAuth.facebook.profileImageURL
       };
       user.save(key, updateData).then(function (ref) {
-        console.log('Update Success!');
+        toastr.success('Update Success!');
       });
     }
   }
@@ -568,9 +569,9 @@
 
   angular.module('app').controller('HomeController', HomeController);
 
-  HomeController.$inject = ['$scope', '$state', 'currentAuth', 'user'];
+  HomeController.$inject = ['$scope', '$state', 'currentAuth', 'toastr', 'user'];
 
-  function HomeController($scope, $state, currentAuth, user) {
+  function HomeController($scope, $state, currentAuth, toastr, user) {
 
     var vm = this;
     vm.me = currentAuth;
@@ -585,6 +586,7 @@
     function checkUserData() {
       user.get(currentAuth.uid).$loaded().then(function (userData) {
         if (_.isUndefined(userData.name) || _.isUndefined(userData.email)) {
+          toastr.warning('Please input your Username and Email.', 'Sorry, we can\'t get Email.');
           return $state.go('account');
         }
       });
