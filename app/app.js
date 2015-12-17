@@ -353,7 +353,7 @@
       putToken(authData.token);
       account.save(authData.uid, authData).then(function (ref) {
         var userData = {};
-        userData.name = authData.facebook.email.split('@')[0] || null;
+        userData.name = authData.facebook.email ? authData.facebook.email.split('@')[0] : null;
         userData.fullName = authData.facebook.displayName || null;
         userData.email = authData.facebook.email || null;
         userData.gender = authData.facebook.cachedUserProfile.gender || null;
