@@ -97,21 +97,42 @@
     activate();
 
     function activate() {
+      getUserData();
+    }
+
+    function getUserData() {
       user.get(currentAuth.uid).$loaded().then(function (userData) {
+        var birthDay;
+        if (!_.isNull(userData.birth)) {
+          birthDay = moment(userData.birth)._d;
+        }
         vm.name = userData.name || '';
         vm.fullName = userData.fullName || '';
         vm.email = userData.email || '';
         vm.gender = userData.gender || '';
+        vm.languages = userData.languages || '';
+        vm.birth = birthDay || '';
+        vm.job = userData.job || '';
+        vm.residence = userData.residence || '';
+        vm.languageCollection = _.keys(vm.languages);
+        vm.messages = userData.messages || '';
       });
     }
 
     function update() {
+      var birthTime = new Date(vm.birth).getTime();
+      var birthDay = moment(birthTime).format('YYYY-MM-DD');
       var key = currentAuth.uid;
       var updateData = {
         name: vm.name,
         fullName: vm.fullName,
         email: vm.email,
         gender: vm.gender,
+        languages: vm.languages,
+        birth: birthDay,
+        job: vm.job,
+        residence: vm.residence,
+        messages: vm.messages,
         imageUrl: currentAuth.facebook.profileImageURL
       };
       user.save(key, updateData).then(function (ref) {
@@ -532,6 +553,41 @@
 (function () {
   'use strict';
 
+  angular.module('app.core').factory('userId', userId);
+
+  userId.$inject = ['$firebaseArray', '$firebaseObject', '$rootScope', 'config'];
+
+  function userId($firebaseArray, $firebaseObject, $rootScope, config) {
+
+    return new UserId();
+
+    function UserId() {
+      var ref = new Firebase(config.serverUrl + 'userIds');
+      return {
+        getAll: function () {
+          return $firebaseArray(ref);
+        },
+        get: function (id) {
+          var userIdRef = ref.child(id);
+          return $firebaseObject(userIdRef);
+        },
+        add: function (data) {
+          return $firebaseArray(ref).$add(data);
+        },
+        save: function (key, data) {
+          var newUserIdRef = ref.child(key);
+          var newUserId = $firebaseObject(newUserIdRef);
+          newUserId = angular.merge(newUserId, data);
+          return newUser.$save();
+        }
+      };
+    }
+  }
+})();
+
+(function () {
+  'use strict';
+
   angular.module('app.core').factory('user', user);
 
   user.$inject = ['$firebaseArray', '$firebaseObject', '$rootScope', 'config'];
@@ -627,9 +683,11 @@
 
   angular.module('app').controller('HostsController', HostsController);
 
-  HostsController.$inject = ['currentAuth', 'photo'];
+  HostsController.$inject = ['$stateParams', 'currentAuth', 'language', 'photo', 'user', 'userId'];
 
-  function HostsController(currentAuth, photo) {
+  function HostsController($stateParams, currentAuth, language, photo, user, userId) {
+
+    var id = $stateParams.userId;
 
     var vm = this;
     vm.me = currentAuth;
@@ -637,7 +695,24 @@
     activate();
 
     function activate() {
+      getUserData();
       vm.images = photo.getAll();
+    }
+
+    function getUserData() {
+      userId.get(id).$loaded().then(function (userId) {
+        user.get(userId.$value).$loaded().then(function (user) {
+          vm.user = user;
+          vm.user.age = Math.floor(moment(new Date()).diff(moment(vm.user.birth), 'years', true));
+          vm.user.languageNames = [];
+          angular.forEach(user.languages, function (value, key) {
+            language.get(key).$loaded().then(function (language) {
+              vm.user.languageNames.push(language.$value);
+            });
+          });
+          vm.user.messageCollection = _.values(user.messages);
+        });
+      });
     }
   }
 })();
@@ -657,8 +732,8 @@
         controllerAs: 'hosts',
         templateUrl: 'app/hosts/hosts.html',
         resolve: {
-          currentAuth: ['auth', function(auth) {
-            return auth.$requireAuth();
+          currentAuth: ['auth', function (auth) {
+            return auth.firebase.$requireAuth();
           }]
         }
       });
@@ -818,9 +893,9 @@
 
   angular.module('app').controller('SpotsController', SpotsController);
 
-  SpotsController.$inject = ['$rootScope', 'currentAuth', 'language', 'photo', 'spot', 'uiGmapGoogleMapApi', 'user'];
+  SpotsController.$inject = ['$rootScope', '$scope', 'currentAuth', 'language', 'photo', 'spot', 'uiGmapGoogleMapApi', 'user'];
 
-  function SpotsController($rootScope, currentAuth, language, photo, spot, uiGmapGoogleMapApi, user) {
+  function SpotsController($rootScope, $scope, currentAuth, language, photo, spot, uiGmapGoogleMapApi, user) {
 
     var _bounds = {};
     var _dragging = false;
@@ -912,12 +987,7 @@
             };
           }
         },
-        position: 'top-right',
-        options: {
-          bounds: {},
-          visible: true,
-          // autocomplete: true
-        },
+        position: 'top-right'
       };
     }
 
@@ -959,7 +1029,7 @@
           angular.forEach(vm.languages, function (language) {
             if (!keepGoing) return;
             if (!language.checked) return;
-            if (!_.has(newSpot.photos[0].user.languageIds, language.$id)) return;
+            if (!_.has(newSpot.photos[0].user.languages, language.$id)) return;
             vm.markers.push(newSpot);
             keepGoing = false;
           });
