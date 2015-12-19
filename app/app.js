@@ -35,22 +35,16 @@
   angular.module('app.account', []);
 })();
 
-(function () {
+(function() {
   'use strict';
 
-  angular.module('app.home', []);
+  angular.module('app.layout', []);
 })();
 
 (function () {
   'use strict';
 
   angular.module('app.hosts', []);
-})();
-
-(function() {
-  'use strict';
-
-  angular.module('app.layout', []);
 })();
 
 (function () {
@@ -79,6 +73,12 @@
   'use strict';
 
   angular.module('app.tickets', []);
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app.home', []);
 })();
 
 (function () {
@@ -235,6 +235,41 @@
 (function () {
   'use strict';
 
+  angular.module('app.core').factory('contact', contact);
+
+  contact.$inject = ['$firebaseArray', '$firebaseObject', 'config'];
+
+  function contact($firebaseArray, $firebaseObject, config) {
+
+    return new Contact();
+
+    function Contact() {
+      var ref = new Firebase(config.serverUrl + 'contacts');
+      return {
+        getAll: function () {
+          return $firebaseArray(ref);
+        },
+        get: function (id) {
+          var userRef = ref.child(id);
+          return $firebaseObject(userRef);
+        },
+        add: function (data) {
+          return $firebaseArray(ref).$add(data);
+        },
+        save: function (key, data) {
+          var newContactRef = ref.child(key);
+          var newContact = $firebaseObject(newContactRef);
+          newContact = angular.merge(newContact, data);
+          return newContact.$save();
+        }
+      };
+    }
+  }
+})();
+
+(function () {
+  'use strict';
+
   angular.module('app.core').factory('config', config);
 
   config.$inject = [];
@@ -267,13 +302,17 @@
 
   angular.module('app.core').run(run);
 
-  run.$inject = ['$cookies', '$rootScope', '$state', 'auth'];
+  run.$inject = ['$cookies', '$rootScope', '$state', 'auth', 'user'];
 
-  function run($cookies, $rootScope, $state, auth) {
+  function run($cookies, $rootScope, $state, auth, user) {
 
     // 該当ページのスラッグをbodyのclassに入れるため
     $rootScope.$on('$stateChangeSuccess', function (event, toState, toParams, fromState, fromParams, error) {
-      $rootScope.pageName = toState.controllerAs;
+      angular.merge($rootScope, {
+        statuses: {
+          pageName: toState.controllerAs
+        }
+      });
     });
 
     // 未ログインのままログインが必要なページに遷移した場合の処理
@@ -289,6 +328,7 @@
       // ログイン済みの場合はトークンを更新してリターン
       if (!_.isNull(authData)) {
         putToken(authData.facebook.accessToken);
+        setUserData(authData.uid);
         return $state.go('home');
       }
 
@@ -302,6 +342,7 @@
       // トークンでログイン可能かチェック
       auth.firebase.$authWithOAuthToken('facebook', token).then(function (authData) {
         putToken(authData.facebook.accessToken);
+        setUserData(authData.uid);
         return $state.go('home');
       }).catch(function (error) {
         return $state.go('spots');
@@ -316,6 +357,17 @@
 
     function getToken() {
       return $cookies.get('bandally');
+    }
+
+    function setUserData(id) {
+      user.get(id).$loaded().then(function (user) {
+        angular.merge($rootScope, {
+          statuses: {
+            userId: id,
+            userName: user.name
+          }
+        });
+      });
     }
   }
 })();
@@ -434,6 +486,42 @@
       	expires: expires
       };
       $cookies.put('bandally', token, options);
+    }
+  }
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app.core').factory('notification', notification);
+
+  notification.$inject = ['$firebaseArray', '$firebaseObject', 'config'];
+
+  function notification($firebaseArray, $firebaseObject, config) {
+
+    return new Notification();
+
+    function Notification() {
+      var ref = new Firebase(config.serverUrl + 'notifications');
+      return {
+        getAll: function () {
+          return $firebaseArray(ref);
+        },
+        get: function (id) {
+          var userRef = ref.child(id);
+          return $firebaseObject(userRef);
+        },
+        add: function (userName, data) {
+          var userRef = ref.child(userName);
+          return $firebaseArray(userRef).$add(data);
+        },
+        save: function (key, data) {
+          var newNotificationRef = ref.child(key);
+          var newNotification = $firebaseObject(newNotificationRef);
+          newNotification = angular.merge(newNotification, data);
+          return newNotification.$save();
+        }
+      };
     }
   }
 })();
@@ -590,9 +678,9 @@
 
   angular.module('app.core').factory('user', user);
 
-  user.$inject = ['$firebaseArray', '$firebaseObject', '$rootScope', 'config'];
+  user.$inject = ['$firebaseArray', '$firebaseObject', '$q', '$rootScope', 'config', 'userId'];
 
-  function user($firebaseArray, $firebaseObject, $rootScope, config) {
+  function user($firebaseArray, $firebaseObject, $q, $rootScope, config, userId) {
 
     return new User();
 
@@ -614,6 +702,16 @@
           var newUser = $firebaseObject(newUserRef);
           newUser = angular.merge(newUser, data);
           return newUser.$save();
+        },
+        addNotification: function (userName, data) {
+          var deferred = $q.defer();
+          userId.get(userName).$loaded().then(function (userId) {
+            var notificationRef = ref.child(userId.$value).child('notifications');
+            return $firebaseArray(notificationRef).$add(data).then(function (ref) {
+              return deferred.resolve(ref);
+            });
+          });
+          return deferred.promise;
         }
       };
     }
@@ -623,34 +721,44 @@
 (function () {
   'use strict';
 
-  angular.module('app').controller('HomeController', HomeController);
+  angular.module('app').directive('header', header);
 
-  HomeController.$inject = ['$scope', '$state', 'currentAuth', 'toastr', 'user'];
+  header.$inject = [];
 
-  function HomeController($scope, $state, currentAuth, toastr, user) {
+  function header() {
+    return {
+      templateUrl: 'app/layout/header.html',
+      scope: {},
+      controller: HeaderController,
+      controllerAs: 'header',
+      bindToController: true
+    };
+  }
+
+  HeaderController.$inject = ['$cookies', '$state', 'auth', 'user'];
+
+  function HeaderController($cookies, $state, auth, user) {
 
     var vm = this;
-    vm.me = currentAuth;
+    vm.auth = {};
+    vm.notifications = {};
+    vm.logout = logout;
 
     activate();
 
     function activate() {
-      $scope.$on('$stateChangeSuccess', checkUserData);
-      getFavorites();
-    }
-
-    function checkUserData() {
-      user.get(currentAuth.uid).$loaded().then(function (userData) {
-        if (_.isUndefined(userData.name) || _.isUndefined(userData.email)) {
-          toastr.warning('Please input your Username and Email.', 'Sorry, we can\'t get Email.');
-          return $state.go('account');
-        }
+      auth.firebase.$onAuth(function (authData) {
+        vm.auth = authData;
+        user.get(authData.uid).$loaded().then(function (user) {
+          vm.notifications = user.notifications;
+        })
       });
     }
 
-    function getFavorites() {
-      // console.log(user.get(currentAuth.uid));
-      // user.get(currentAuth)
+    function logout() {
+      auth.firebase.$unauth();
+      $cookies.remove('bandally');
+      $state.go('spots');
     }
   }
 })();
@@ -658,23 +766,56 @@
 (function () {
   'use strict';
 
-  angular.module('app.home').config(route);
+  angular.module('app').controller('ContactController', ContactController);
 
-  route.$inject = ['$stateProvider'];
+  ContactController.$inject = ['$rootScope', '$stateParams', '$uibModalInstance', 'contact', 'user', 'userId'];
 
-  function route($stateProvider) {
-    $stateProvider
-      .state('home', {
-        url: '/home',
-        controller: 'HomeController',
-        controllerAs: 'home',
-        templateUrl: 'app/home/home.html',
-        resolve: {
-          currentAuth: ['auth', function (auth) {
-            return auth.firebase.$requireAuth();
-          }]
-        }
+  function ContactController($rootScope, $stateParams, $uibModalInstance, contact, user, userId) {
+
+    var hostName = $stateParams.userId;
+
+    var vm = this;
+    vm.status = {};
+    vm.place = '';
+    vm.date = new Date();
+    vm.openCalendar = openCalendar;
+    vm.cancel = cancel;
+    vm.ok = ok;
+
+    activate();
+
+    function activate() {
+      vm.status.opened = false;
+    }
+
+    function openCalendar($event) {
+      vm.status.opened = true;
+    }
+
+    function cancel() {
+      $uibModalInstance.dismiss('cancel');
+    }
+
+    function ok() {
+      userId.get(hostName).$loaded().then(function (userId) {
+        var hostId = userId.$value;
+        var guestId = $rootScope.statuses.userId;
+        var contactData = {
+          place: vm.place,
+          date: vm.date.toString(),
+          host: hostId,
+          guest: guestId
+        };
+        contact.add(contactData).then(function (ref) {
+          var notificationData = {
+            from: guestId,
+            contactId: ref.key(),
+            created: new Date().toString()
+          };
+          user.addNotification(hostName, notificationData);
+        });
       });
+    }
   }
 })();
 
@@ -683,14 +824,15 @@
 
   angular.module('app').controller('HostsController', HostsController);
 
-  HostsController.$inject = ['$stateParams', 'currentAuth', 'language', 'photo', 'user', 'userId'];
+  HostsController.$inject = ['$uibModal', '$stateParams', 'currentAuth', 'language', 'photo', 'user', 'userId'];
 
-  function HostsController($stateParams, currentAuth, language, photo, user, userId) {
+  function HostsController($uibModal, $stateParams, currentAuth, language, photo, user, userId) {
 
     var id = $stateParams.userId;
 
     var vm = this;
     vm.me = currentAuth;
+    vm.showModal = showModal;
 
     activate();
 
@@ -703,7 +845,7 @@
       userId.get(id).$loaded().then(function (userId) {
         user.get(userId.$value).$loaded().then(function (user) {
           vm.user = user;
-          vm.user.age = Math.floor(moment(new Date()).diff(moment(vm.user.birth), 'years', true));
+          vm.user.age = _.isUndefined(user.birth) ? null : Math.floor(moment(new Date()).diff(moment(user.birth), 'years', true));
           vm.user.languageNames = [];
           angular.forEach(user.languages, function (value, key) {
             language.get(key).$loaded().then(function (language) {
@@ -712,6 +854,14 @@
           });
           vm.user.messageCollection = _.values(user.messages);
         });
+      });
+    }
+
+    function showModal() {
+      $uibModal.open({
+        templateUrl: 'app/hosts/contact.html',
+        controller: 'ContactController',
+        controllerAs: 'contact'
       });
     }
   }
@@ -737,47 +887,6 @@
           }]
         }
       });
-  }
-})();
-
-(function () {
-  'use strict';
-
-  angular.module('app').directive('header', header);
-
-  header.$inject = [];
-
-  function header() {
-    return {
-      templateUrl: 'app/layout/header.html',
-      scope: {},
-      controller: HeaderController,
-      controllerAs: 'header',
-      bindToController: true
-    };
-  }
-
-  HeaderController.$inject = ['$cookies', '$state', 'auth'];
-
-  function HeaderController($cookies, $state, auth) {
-
-    var vm = this;
-    vm.auth = {};
-    vm.logout = logout;
-
-    activate();
-
-    function activate() {
-      auth.firebase.$onAuth(function (authData) {
-        vm.auth = authData;
-      });
-    }
-
-    function logout() {
-      auth.firebase.$unauth();
-      $cookies.remove('bandally');
-      $state.go('spots');
-    }
   }
 })();
 
@@ -1151,6 +1260,64 @@
         resolve: {
           currentAuth: ['auth', function(auth) {
             return auth.$requireAuth();
+          }]
+        }
+      });
+  }
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app').controller('HomeController', HomeController);
+
+  HomeController.$inject = ['$scope', '$state', 'currentAuth', 'toastr', 'user'];
+
+  function HomeController($scope, $state, currentAuth, toastr, user) {
+
+    var vm = this;
+    vm.me = currentAuth;
+
+    activate();
+
+    function activate() {
+      $scope.$on('$stateChangeSuccess', checkUserData);
+      getFavorites();
+    }
+
+    function checkUserData() {
+      user.get(currentAuth.uid).$loaded().then(function (userData) {
+        if (_.isUndefined(userData.name) || _.isUndefined(userData.email)) {
+          toastr.warning('Please input your Username and Email.', 'Sorry, we can\'t get Email.');
+          return $state.go('account');
+        }
+      });
+    }
+
+    function getFavorites() {
+      // console.log(user.get(currentAuth.uid));
+      // user.get(currentAuth)
+    }
+  }
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app.home').config(route);
+
+  route.$inject = ['$stateProvider'];
+
+  function route($stateProvider) {
+    $stateProvider
+      .state('home', {
+        url: '/home',
+        controller: 'HomeController',
+        controllerAs: 'home',
+        templateUrl: 'app/home/home.html',
+        resolve: {
+          currentAuth: ['auth', function (auth) {
+            return auth.firebase.$requireAuth();
           }]
         }
       });

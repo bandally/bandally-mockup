@@ -5,12 +5,18 @@
   <div class="collapse navbar-collapse">
     <ul class="nav navbar-nav navbar-right" ng-if="header.auth">
       <li><a ui-sref="home"><i class="fa fa-home fa-2x"></i> ホーム</a></li>
-      <li>
-        <a ui-sref="notifications">
+      <li class="dropdown" uib-dropdown>
+        <a class="dropdown-toggle" uib-dropdown-toggle>
           <i class="fa fa-envelope-o fa-2x"></i>
           通知
-          <span class="badge">2</span>
+          <span class="badge">{{ header.notifications.length }}</span>
+          <i class="fa fa-caret-down"></i>
         </a>
+        <ul class="dropdown-menu">
+          <li ng-repeat="notification in header.notifications">
+            <a>{{ notification.from }}</a>
+          </li>
+        </ul>
       </li>
       <li class="dropdown" uib-dropdown>
         <a class="dropdown-toggle" uib-dropdown-toggle>

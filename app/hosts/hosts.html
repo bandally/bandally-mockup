@@ -18,13 +18,17 @@
           </div>
           <div class="col-sm-8">
             <div class="pull-right"><i class="fa fa-star fa-2x"></i></div>
-            <p><strong>{{ hosts.user.fullName }}</strong> ({{ hosts.user.age }})</p>
-            <p>{{ hosts.user.job }}</p>
+            <p>
+              <strong>{{ hosts.user.fullName }}</strong>
+              <span ng-if="hosts.user.age">({{ hosts.user.age }})</span>
+            </p>
+            <p ng-if="hosts.user.job">{{ hosts.user.job }}</p>
             <p>
               <i class="fa fa-language fa-lg fa-fw"></i>
               <span class="label label-default" ng-repeat="language in hosts.user.languageNames">{{ language }}</span>
+              <span class="text-muted" ng-if="!hosts.user.languageNames.length">Unanswered</span>
             </p>
-            <p>
+            <p ng-if="hosts.user.residence">
               <i class="fa fa-map-marker fa-lg fa-fw"></i>
               {{ hosts.user.residence }}
             </p>
@@ -34,7 +38,7 @@
       </div>
     </div>
     <div class="col-sm-4">
-      <p><button class="btn btn-lg btn-primary btn-block">Get contact</button></p>
+      <p><button class="btn btn-lg btn-primary btn-block" ng-click="hosts.showModal()">Get contact</button></p>
       <div>
         <div class="well" style="margin: 20px 0;" ng-repeat="image in hosts.images">
           <div style="background: url({{ image.url }}) no-repeat center center / cover; padding-top: 56.25%; margin: -19px -19px 10px; border-radius: 4px 4px 0 0;"></div>
