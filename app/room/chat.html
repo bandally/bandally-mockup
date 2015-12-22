@@ -1,0 +1,13 @@
+<div ng-class="{ loading: !chat.isMessageLoaded }" ng-if="!chat.isMessagesLoaded">
+  <i class="fa fa-spinner fa-spin fa-3x"></i>
+</div>
+<div class="messages">
+  <div class="message" ng-repeat="message in chat.messages" ng-class="{ me: message.isMe }">
+    <div class="avator" style="background-image: url({{ chat.you.imageUrl }})" ng-if="!message.isMe"></div>
+    <div class="text">{{ message.message }}</div>
+  </div>
+</div>
+<div class="input-area">
+  <textarea class="form-control" placeholder="Message" ng-model="chat.newMessage"></textarea>
+  <button class="btn btn-primary btn-block" ng-click="chat.postMessage()">送信</button>
+</div>

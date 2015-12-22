@@ -1,0 +1,12 @@
+<p>{{ accept.contact.date }}</p>
+<p>{{ accept.contact.place }}</p>
+<h2>ゲスト</h2>
+<img alt="" ng-src="{{ accept.contact.guestData.imageUrl }}">
+<p>{{ accept.contact.guestData.fullName }}</p>
+<p>{{ accept.contact.guestData.gender }}</p>
+<p>{{ accept.contact.guestData.birth }}</p>
+<p>{{ accept.contact.guestData.job }}</p>
+<p>
+  <button class="btn btn-default btn-lg" ng-click="accept.dontAccept()">Don't accept</button>
+  <button class="btn btn-success btn-lg" ng-click="accept.accept()">Accept</button>
+</p>

@@ -27,7 +27,7 @@
   <div class="col-sm-6">
     <div class="chat well">
       <h2 class="page-header">メッセージ</h2>
-      <div ng-class="{ loading: !room.room.messages }" ng-if="!room.room.messages"><i class="fa fa-spinner fa-spin fa-3x"></i></div>
+      <!-- <div ng-class="{ loading: !room.room.isMessageLoaded }" ng-if="!room.room.isMessageLoaded"><i class="fa fa-spinner fa-spin fa-3x"></i></div>
       <div class="messages">
         <div class="message" ng-repeat="message in room.room.messages" ng-class="{ me: room.room.me === message.userId }">
           <div class="avator" style="background-image: url({{ room.users[message.userId].imageUrl }})" ng-if="!room.isMe(message.userId)"></div>
@@ -37,7 +37,8 @@
       <div class="input-area">
         <textarea class="form-control" placeholder="Message" ng-model="room.newMessage"></textarea>
         <button class="btn btn-primary btn-block" ng-click="room.postMessage()">送信</button>
-      </div>
+      </div> -->
+      <chat room-id="room.roomId"></chat>
     </div>
   </div>
   <div class="col-sm-6">

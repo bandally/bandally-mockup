@@ -46,7 +46,15 @@ body {
 }
 
 .header .navbar-nav > li > a {
-  line-height: 28px;
+  line-height: 22px;
+}
+
+.header .header-notifications a span {
+  background: transparent no-repeat center center / cover;
+  border-radius: 50%;
+  display: inline-block;
+  height: 40px;
+  width: 40px;
 }
 
 .footer p {

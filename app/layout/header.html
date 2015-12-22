@@ -9,12 +9,15 @@
         <a class="dropdown-toggle" uib-dropdown-toggle>
           <i class="fa fa-envelope-o fa-2x"></i>
           通知
-          <span class="badge">{{ header.notifications.length }}</span>
+          <span class="badge" ng-if="header.notifications.length">{{ header.notifications.length }}</span>
           <i class="fa fa-caret-down"></i>
         </a>
-        <ul class="dropdown-menu">
+        <ul class="dropdown-menu header-notifications">
           <li ng-repeat="notification in header.notifications">
-            <a>{{ notification.from }}</a>
+            <a ui-sref="accept({ contactId: notification.contactId })">
+              <span style="background-image: url({{ notification.sender.imageUrl }})"></span>
+              <strong>{{ notification.sender.fullName }}</strong> さんからメッセージが届いています
+            </a>
           </li>
         </ul>
       </li>

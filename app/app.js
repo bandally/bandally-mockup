@@ -35,16 +35,22 @@
   angular.module('app.account', []);
 })();
 
-(function() {
+(function () {
   'use strict';
 
-  angular.module('app.layout', []);
+  angular.module('app.home', []);
 })();
 
 (function () {
   'use strict';
 
   angular.module('app.hosts', []);
+})();
+
+(function() {
+  'use strict';
+
+  angular.module('app.layout', []);
 })();
 
 (function () {
@@ -73,12 +79,6 @@
   'use strict';
 
   angular.module('app.tickets', []);
-})();
-
-(function () {
-  'use strict';
-
-  angular.module('app.home', []);
 })();
 
 (function () {
@@ -261,6 +261,10 @@
           var newContact = $firebaseObject(newContactRef);
           newContact = angular.merge(newContact, data);
           return newContact.$save();
+        },
+        remove: function (key) {
+          var contactRef = ref.child(key);
+          return $firebaseObject(contactRef).$remove();
         }
       };
     }
@@ -585,9 +589,13 @@
         add: function (data) {
           return $firebaseArray(ref).$add(data);
         },
+        getMessages: function (roomId) {
+          var messagesRef = ref.child(roomId).child('messages');
+          return $firebaseArray(messagesRef);
+        },
         postMessage: function (roomId, data) {
-          var roomRef = ref.child(roomId).child('messages');
-          return $firebaseArray(roomRef).$add(data);
+          var messagesRef = ref.child(roomId).child('messages');
+          return $firebaseArray(messagesRef).$add(data);
         }
       };
     }
@@ -721,44 +729,106 @@
 (function () {
   'use strict';
 
-  angular.module('app').directive('header', header);
+  angular.module('app').controller('HomeController', HomeController);
 
-  header.$inject = [];
+  HomeController.$inject = ['$scope', '$state', 'currentAuth', 'toastr', 'user'];
 
-  function header() {
-    return {
-      templateUrl: 'app/layout/header.html',
-      scope: {},
-      controller: HeaderController,
-      controllerAs: 'header',
-      bindToController: true
-    };
-  }
-
-  HeaderController.$inject = ['$cookies', '$state', 'auth', 'user'];
-
-  function HeaderController($cookies, $state, auth, user) {
+  function HomeController($scope, $state, currentAuth, toastr, user) {
 
     var vm = this;
-    vm.auth = {};
-    vm.notifications = {};
-    vm.logout = logout;
+    vm.me = currentAuth;
 
     activate();
 
     function activate() {
-      auth.firebase.$onAuth(function (authData) {
-        vm.auth = authData;
-        user.get(authData.uid).$loaded().then(function (user) {
-          vm.notifications = user.notifications;
-        })
+      $scope.$on('$stateChangeSuccess', checkUserData);
+      getFavorites();
+    }
+
+    function checkUserData() {
+      user.get(currentAuth.uid).$loaded().then(function (userData) {
+        if (_.isUndefined(userData.name) || _.isUndefined(userData.email)) {
+          toastr.warning('Please input your Username and Email.', 'Sorry, we can\'t get Email.');
+          return $state.go('account');
+        }
       });
     }
 
-    function logout() {
-      auth.firebase.$unauth();
-      $cookies.remove('bandally');
-      $state.go('spots');
+    function getFavorites() {
+      // console.log(user.get(currentAuth.uid));
+      // user.get(currentAuth)
+    }
+  }
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app.home').config(route);
+
+  route.$inject = ['$stateProvider'];
+
+  function route($stateProvider) {
+    $stateProvider
+      .state('home', {
+        url: '/home',
+        controller: 'HomeController',
+        controllerAs: 'home',
+        templateUrl: 'app/home/home.html',
+        resolve: {
+          currentAuth: ['auth', function (auth) {
+            return auth.firebase.$requireAuth();
+          }]
+        }
+      });
+  }
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app').controller('AcceptController', AcceptController);
+
+  AcceptController.$inject = ['$state', '$stateParams', 'contact', 'room', 'user'];
+
+  function AcceptController($state, $stateParams, contact, room, user) {
+
+    var id = $stateParams.contactId;
+
+    var vm = this;
+    vm.contact = {};
+    vm.accept = accept;
+    vm.dontAccept = dontAccept;
+
+    activate();
+
+    function activate() {
+      contact.get(id).$loaded().then(function (contact) {
+        vm.contact = contact;
+        user.get(contact.guest).$loaded().then(function (guest) {
+          vm.contact.guestData = guest;
+        });
+      });
+    }
+
+    function accept() {
+      var roomData = {
+        guest: vm.contact.guest,
+        host: vm.contact.host,
+      };
+      room.add(roomData).then(function (ref) {
+        var roomId = ref.key();
+        contact.remove(id).then(function (ref) {
+          console.log(ref);
+          $state.go('room', {
+            roomId: roomId
+          });
+        });
+      });
+    }
+
+    function dontAccept() {
+
     }
   }
 })();
@@ -886,7 +956,136 @@
             return auth.firebase.$requireAuth();
           }]
         }
+      })
+      .state('accept', {
+        url: '/accept/:contactId',
+        controller: 'AcceptController',
+        controllerAs: 'accept',
+        templateUrl: 'app/hosts/accept.html',
+        resolve: {
+          currentAuth: ['auth', function (auth) {
+            return auth.firebase.$requireAuth();
+          }]
+        }
       });
+  }
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app').directive('header', header);
+
+  header.$inject = [];
+
+  function header() {
+    return {
+      templateUrl: 'app/layout/header.html',
+      scope: {},
+      controller: HeaderController,
+      controllerAs: 'header',
+      bindToController: true
+    };
+  }
+
+  HeaderController.$inject = ['$cookies', '$state', 'auth', 'user'];
+
+  function HeaderController($cookies, $state, auth, user) {
+
+    var vm = this;
+    vm.auth = {};
+    vm.notifications = [];
+    vm.logout = logout;
+
+    activate();
+
+    function activate() {
+      auth.firebase.$onAuth(function (authData) {
+        vm.auth = authData;
+        if (!authData.uid) return;
+        user.get(authData.uid).$loaded().then(function (userData) {
+          vm.notifications = _.values(userData.notifications);
+          angular.forEach(vm.notifications, function (notification) {
+            user.get(notification.from).$loaded().then(function (sender) {
+              notification.sender = sender;
+            });
+          });
+        });
+      });
+    }
+
+    function logout() {
+      auth.firebase.$unauth();
+      $cookies.remove('bandally');
+      $state.go('spots');
+    }
+  }
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app').directive('chat', chat);
+
+  chat.$inject = [];
+
+  function chat() {
+    return {
+      templateUrl: 'app/room/chat.html',
+      scope: {
+        roomId: '='
+      },
+      controller: ChatController,
+      controllerAs: 'chat',
+      bindToController: true
+    };
+  }
+
+  ChatController.$inject = ['$rootScope', 'room', 'user'];
+
+  function ChatController($rootScope, room, user) {
+
+    var vm = this;
+    vm.isMessagesLoaded = false;
+    vm.postMessage = postMessage;
+
+    activate();
+
+    function activate() {
+      getRoom();
+      room.getMessages(vm.roomId).$watch(getRoom);
+    }
+
+    function getRoom() {
+      room.get(vm.roomId).$loaded().then(function (room) {
+        vm.messages = room.messages;
+        getYourData(room);
+        angular.forEach(room.messages, function (message) {
+          message.isMe = message.userId === $rootScope.statuses.userId;
+        });
+        vm.isMessagesLoaded = true;
+      });
+    }
+
+    function getYourData(room) {
+      angular.forEach(room, function (value, key) {
+        if (key !== 'guest' && key !== 'host') return;
+        if (value === $rootScope.statuses.userId) return;
+        user.get(value).$loaded().then(function (user) {
+          vm.you = user;
+        });
+      });
+    }
+
+    function postMessage() {
+      var postData = {
+        message: vm.newMessage,
+        userId: $rootScope.statuses.userId
+      };
+      room.postMessage(vm.roomId, postData).then(function (ref) {
+        vm.newMessage = '';
+      });
+    }
   }
 })();
 
@@ -903,6 +1102,7 @@
 
     var vm = this;
     vm.me = currentAuth;
+    vm.roomId = id;
     vm.room = {};
     vm.users = {};
     vm.isMe = isMe;
@@ -924,23 +1124,30 @@
     }
 
     function getMessages() {
+      room.isMessageLoaded = false;
       room.get(id).$loaded().then(function (room) {
         vm.room = room;
-        user.get(room.guestId).$loaded().then(function (guest) {
+        user.get(room.guest).$loaded().then(function (guest) {
           vm.guest = guest;
         });
-        user.get(room.hostId).$loaded().then(function (host) {
+        user.get(room.host).$loaded().then(function (host) {
           vm.host = host;
           vm.host.photos = photo.getAll();
         });
-        angular.forEach(room.userIds, function (bool, userId) {
-          user.get(userId).$loaded().then(function (user) {
-            vm.users[user.name] = user;
-            if (_.includes(user.accountIds, currentAuth.uid)) {
-              room.me = user.name;
-            }
-          });
+        angular.forEach(room, function (value, key) {
+          if (key !== 'guest' && key !== 'host') return;
+          if (value !== $rootScope.statuses.userId) return;
+          room.me = $rootScope.statuses.userName;
         });
+        room.isMessageLoaded = true;
+        // angular.forEach(room.userIds, function (bool, userId) {
+        //   user.get(userId).$loaded().then(function (user) {
+        //     vm.users[user.name] = user;
+        //     if (_.includes(user.accountIds, currentAuth.uid)) {
+        //       room.me = user.name;
+        //     }
+        //   });
+        // });
       });
     }
 
@@ -989,8 +1196,8 @@
         controllerAs: 'room',
         templateUrl: 'app/room/room.html',
         resolve: {
-          currentAuth: ['auth', function(auth) {
-            return auth.$requireAuth();
+          currentAuth: ['auth', function (auth) {
+            return auth.firebase.$requireAuth();
           }]
         }
       });
@@ -1260,64 +1467,6 @@
         resolve: {
           currentAuth: ['auth', function(auth) {
             return auth.$requireAuth();
-          }]
-        }
-      });
-  }
-})();
-
-(function () {
-  'use strict';
-
-  angular.module('app').controller('HomeController', HomeController);
-
-  HomeController.$inject = ['$scope', '$state', 'currentAuth', 'toastr', 'user'];
-
-  function HomeController($scope, $state, currentAuth, toastr, user) {
-
-    var vm = this;
-    vm.me = currentAuth;
-
-    activate();
-
-    function activate() {
-      $scope.$on('$stateChangeSuccess', checkUserData);
-      getFavorites();
-    }
-
-    function checkUserData() {
-      user.get(currentAuth.uid).$loaded().then(function (userData) {
-        if (_.isUndefined(userData.name) || _.isUndefined(userData.email)) {
-          toastr.warning('Please input your Username and Email.', 'Sorry, we can\'t get Email.');
-          return $state.go('account');
-        }
-      });
-    }
-
-    function getFavorites() {
-      // console.log(user.get(currentAuth.uid));
-      // user.get(currentAuth)
-    }
-  }
-})();
-
-(function () {
-  'use strict';
-
-  angular.module('app.home').config(route);
-
-  route.$inject = ['$stateProvider'];
-
-  function route($stateProvider) {
-    $stateProvider
-      .state('home', {
-        url: '/home',
-        controller: 'HomeController',
-        controllerAs: 'home',
-        templateUrl: 'app/home/home.html',
-        resolve: {
-          currentAuth: ['auth', function (auth) {
-            return auth.firebase.$requireAuth();
           }]
         }
       });
