@@ -1,0 +1,7 @@
+<form class="form" name="form">
+  <input type="file" name="file" ngf-select ng-model="fileUpload.picFile" ngf-max-size="20MB" ngf-pattern="'image/*'" ngf-accept="'image/*'">
+  <button class="btn btn-default btn-block" ng-click="fileUpload.uploadPic(fileUpload.picFile)">
+    <i class="fa fa-cloud-upload"></i>
+    Upload
+  </button>
+</form>

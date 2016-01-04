@@ -1,0 +1,12 @@
+{
+  "header": {
+    "menu": {
+      "locale": "言語",
+      "dashboard": "ダッシュボード",
+      "notification": "通知",
+      "account": "アカウント",
+      "login": "ログイン",
+      "logout": "ログアウト"
+    }
+  }
+}

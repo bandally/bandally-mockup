@@ -1,50 +1,61 @@
+<div class="bg">
+  <ul class="bg-images">
+    <li class="bg-image" ng-repeat="photo in hosts.userPhotos" ng-class="{ active: hosts.activeBg == $index }" ng-style="{ backgroundImage: 'url(' + photo.image + ')'}"></li>
+  </ul>
+  <div class="bg-cover"></div>
+</div>
 <section>
-  <div class="carousel">
+  <!-- <div class="carousel">
     <ul rn-carousel rn-carousel-index="carouselIndex" rn-carousel-auto-slide rn-carousel-transition="fadeAndSlide">
       <li ng-repeat="image in hosts.images">
-        <img alt="" ng-src="{{ image.url }}">
+        <div ng-style="{ backgroundImage: 'url(' + image.image + ')'}"></div>
       </li>
     </ul>
     <div class="rn-carousel-indicator custom-indicator">
-      <div style="background: url({{ image.url }}) no-repeat center center / cover" ng-repeat="image in hosts.images" ng-class="{ active: $index === $parent.carouselIndex }" ng-click="$parent.carouselIndex = $index"></div>
+      <div ng-style="{ backgroundImage: 'url(' + image.image + ')'}" ng-repeat="image in hosts.images" ng-class="{ active: $index === $parent.carouselIndex }" ng-click="$parent.carouselIndex = $index"></div>
     </div>
-  </div>
-  <div class="row">
-    <div class="col-sm-8">
-      <div class="well">
-        <div class="row">
-          <div class="col-sm-4">
-            <p style="background: url({{ hosts.user.imageUrl }}) no-repeat center center / cover; padding-top: 100%"></p>
-          </div>
-          <div class="col-sm-8">
-            <div class="pull-right"><i class="fa fa-star fa-2x"></i></div>
-            <p>
-              <strong>{{ hosts.user.fullName }}</strong>
-              <span ng-if="hosts.user.age">({{ hosts.user.age }})</span>
-            </p>
-            <p ng-if="hosts.user.job">{{ hosts.user.job }}</p>
-            <p>
-              <i class="fa fa-language fa-lg fa-fw"></i>
-              <span class="label label-default" ng-repeat="language in hosts.user.languageNames">{{ language }}</span>
-              <span class="text-muted" ng-if="!hosts.user.languageNames.length">Unanswered</span>
-            </p>
-            <p ng-if="hosts.user.residence">
-              <i class="fa fa-map-marker fa-lg fa-fw"></i>
-              {{ hosts.user.residence }}
-            </p>
-          </div>
-        </div>
-        <p ng-repeat="message in hosts.user.messageCollection">{{ message }}</p>
+  </div> -->
+  <div class="hv-center user">
+    <h2>Hi, I'm <strong>{{ hosts.user.fullName }}</strong>!</h2>
+    <p class="user-image" ng-style="{ backgroundImage: 'url(' + hosts.user.imageUrl + ')'}"></p>
+    <p ng-if="hosts.user.job">{{ hosts.user.job }}</p>
+    <p>
+      <i class="fa fa-birthday-cake fa-lg fa-fw"></i>
+      <span ng-if="hosts.user.birth">{{ hosts.user.birth }}</span>
+    </p>
+    <p>
+      <i class="fa fa-language fa-lg fa-fw"></i>
+      <span class="label label-default" ng-repeat="language in hosts.userLanguages">{{ language }}</span>
+      <span class="text-muted" ng-if="!hosts.userLanguages.length">Unanswered</span>
+    </p>
+    <p ng-if="hosts.user.residence">
+      <i class="fa fa-map-marker fa-lg fa-fw"></i>
+      {{ hosts.user.residence }}
+    </p>
+    <p ng-repeat="message in hosts.userMessages">{{ message }}</p>
+    <div class="row">
+      <div class="col-sm-6">
+        <button class="btn btn-default btn-block" ng-if="!hosts.isFavorited || hosts.isMe" ng-click="hosts.addFavorite()" ng-disabled="hosts.isMe">
+          <i class="fa fa-heart"></i>
+          Add favorite
+        </button>
+        <button class="btn btn-default btn-block" ng-if="hosts.isFavorited && !hosts.isMe" ng-click="hosts.removeFavorite()">
+          <i class="fa fa-heart"></i>
+          Remove favorite
+        </button>
+      </div>
+      <div class="col-sm-6">
+        <button class="btn btn-primary btn-block" ng-click="hosts.showModal()" ng-disabled="hosts.isMe">
+          <i class="fa fa-envelope"></i>
+          Get contact
+        </button>
       </div>
     </div>
-    <div class="col-sm-4">
-      <p><button class="btn btn-lg btn-primary btn-block" ng-click="hosts.showModal()">Get contact</button></p>
-      <div>
-        <div class="well" style="margin: 20px 0;" ng-repeat="image in hosts.images">
-          <div style="background: url({{ image.url }}) no-repeat center center / cover; padding-top: 56.25%; margin: -19px -19px 10px; border-radius: 4px 4px 0 0;"></div>
-          スカイツリー
-        </div>
-      </div>
-    </div>
   </div>
+  <!-- <div>
+    <div class="well" style="margin: 20px 0;" ng-repeat="image in hosts.images">
+      <div style="background: url({{ image.image }}) no-repeat center center / cover; padding-top: 56.25%; margin: -19px -19px 10px; border-radius: 4px 4px 0 0;"></div>
+      スカイツリー
+    </div>
+  </div> -->
 </section>

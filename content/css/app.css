@@ -27,6 +27,11 @@ body {
   padding-top: 58px;
 }
 
+img {
+  height: auto;
+  max-width: 100%;
+}
+
 .header {
   font-size: 12px;
   height: 58px;
@@ -71,6 +76,50 @@ body {
   padding: 0 40px;
 }
 
+.bg {
+  height: 100vh;
+  left: 0;
+  position: fixed;
+  top: 0;
+  width: 100%;
+}
+
+.bg .bg-images {
+  height: 100%;
+  left: 0;
+  margin: 0;
+  padding: 0;
+  position: absolute;
+  top: 0;
+  width: 100%;
+}
+
+.bg .bg-images .bg-image {
+  background: transparent no-repeat center center / cover;
+  height: 100%;
+  left: 0;
+  opacity: 0;
+  position: absolute;
+  top: 0;
+  -webkit-transition: opacity 2s;
+  transition: opacity 2s;
+  width: 100%;
+}
+
+.bg .bg-images .bg-image.active {
+  opacity: 1;
+}
+
+.bg .bg-cover {
+  background: -webkit-radial-gradient(center ellipse, #1e5799 0%, rgba(54, 151, 142, 0.5) 0%, #0c526c 100%, #3d7eaa 100%, #182848 100%, #6e48aa 100%, #6e48aa 100%);
+  background: radial-gradient(ellipse at center, #1e5799 0%, rgba(54, 151, 142, 0.5) 0%, #0c526c 100%, #3d7eaa 100%, #182848 100%, #6e48aa 100%, #6e48aa 100%);
+  height: 100%;
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 100%;
+}
+
 .global-navi {
   background: #333;
   color: #fff;
@@ -111,8 +160,10 @@ body {
 }
 
 .map-canvas .map-window-image {
-  height: auto;
-  max-width: 120px;
+  background: transparent no-repeat center center / cover;
+  display: inline-block;
+  height: 120px;
+  width: 120px;
 }
 
 .list-with-photo ul {
@@ -145,6 +196,40 @@ body {
   position: absolute;
   right: 10px;
   width: 40px;
+}
+
+.photos:after {
+  clear: both;
+  content: '';
+  display: block;
+}
+
+.photos .photo {
+  background: #fff;
+  border-radius: 4px;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.25);
+  float: left;
+  margin: 0 0 3% 3%;
+  padding: 20px;
+  width: 31%;
+}
+
+.photos .photo:nth-child(3n + 1) {
+  margin: 0 0 3% 0;
+}
+
+.photos .photo .photo-image {
+  background: transparent no-repeat center center / cover;
+  border-radius: 4px 4px 0 0;
+  display: block;
+  margin: -20px -20px 20px;
+  padding-top: 100%;
+}
+
+.photos .photo.photo-add {
+  background: transparent;
+  border: 8px dashed #ccc;
+  box-shadow: none;
 }
 
 .chat .message {
@@ -275,6 +360,18 @@ body {
   min-width: 360px;
 }
 
+.page-home .modal-body {
+  height: 500px;
+}
+
+.page-home .modal-body .angular-google-map {
+  height: 100%;
+}
+
+.page-home .modal-body .angular-google-map .angular-google-map-container {
+  height: 100%;
+}
+
 .page-hosts .carousel {
   margin: 0 -40px 20px;
   position: relative;
@@ -283,13 +380,11 @@ body {
 .page-hosts .carousel ul {
   height: 500px;
   margin: 0;
-  width: calc(100% + 80px);
 }
 
-.page-hosts .carousel ul li img {
-  height: auto;
-  vertical-align: top;
-  width: 100%;
+.page-hosts .carousel ul li div {
+  background: transparent no-repeat center center / cover;
+  height: 100%;
 }
 
 .page-hosts .carousel .custom-indicator {
@@ -304,6 +399,7 @@ body {
 }
 
 .page-hosts .carousel .custom-indicator div {
+  background: transparent no-repeat center center / cover;
   border: 1px solid rgba(255, 255, 255, 0.5);
   border-radius: 8px;
   cursor: pointer;
@@ -319,6 +415,28 @@ body {
   -webkit-transform: scale(1.2);
       -ms-transform: scale(1.2);
           transform: scale(1.2);
+}
+
+.page-hosts .user {
+  color: #fff;
+  min-width: 360px;
+  text-align: center;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+}
+
+.page-hosts .user .user-image {
+  background: transparent no-repeat center center / cover;
+  border-radius: 50%;
+  height: 160px;
+  margin: 0 auto;
+  width: 160px;
+}
+
+.page-hosts .footer {
+  bottom: 0;
+  left: 0;
+  position: fixed;
+  width: 100%;
 }
 
 .page-room .users {
@@ -363,4 +481,8 @@ body {
 
 .header {
   z-index: 1;
+}
+
+.bg {
+  z-index: -1;
 }

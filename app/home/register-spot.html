@@ -1,0 +1,12 @@
+<div class="modal-header">
+  <h3 class="modal-title">スポット登録</h3>
+</div>
+<div class="modal-body">
+  <ui-gmap-google-map center="registerSpot.map.center" zoom="registerSpot.map.zoom" pan="false" events="registerSpot.map.events">
+    <ui-gmap-marker idKey="registerSpot.map.marker.key" coords="registerSpot.map.marker.coords" options="registerSpot.map.marker.options" events="registerSpot.map.marker.events"></ui-gmap-marker>
+  </ui-gmap-google-map>
+</div>
+<div class="modal-footer">
+  <button class="btn btn-default" type="button" ng-click="registerSpot.cancel()">Cancel</button>
+  <button class="btn btn-primary" type="button" ng-click="registerSpot.addSpot()">OK</button>
+</div>

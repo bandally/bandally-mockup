@@ -3,40 +3,68 @@
     <a class="navbar-brand" ui-sref="spots"><img src="content/img/logo.png" alt="Bandally"></a>
   </div>
   <div class="collapse navbar-collapse">
-    <ul class="nav navbar-nav navbar-right" ng-if="header.auth">
-      <li><a ui-sref="home"><i class="fa fa-home fa-2x"></i> ホーム</a></li>
+    <ul class="nav navbar-nav">
+      <li class="dropdown" uib-dropdown>
+        <a class="dropdown-toggle" uib-dropdown-toggle>
+          <i class="fa fa-globe fa-2x"></i>
+          <span>{{ 'header.menu.locale' | translate }}</span>
+          <span class="caret"></span>
+        </a>
+        <ul class="dropdown-menu">
+          <li><a ng-click="header.changeLocale('en')">English</a></li>
+          <li><a ng-click="header.changeLocale('ja')">日本語</a></li>
+        </ul>
+      </li>
+    </ul>
+    <ul class="nav navbar-nav navbar-right" ng-if="header.isLoggedIn()">
+      <li>
+        <a ui-sref="home">
+          <i class="fa fa-home fa-2x"></i>
+          <span>{{ 'header.menu.dashboard' | translate }}</span>
+        </a>
+      </li>
       <li class="dropdown" uib-dropdown>
         <a class="dropdown-toggle" uib-dropdown-toggle>
           <i class="fa fa-envelope-o fa-2x"></i>
-          通知
+          <span>{{ 'header.menu.notification' | translate }}</span>
           <span class="badge" ng-if="header.notifications.length">{{ header.notifications.length }}</span>
-          <i class="fa fa-caret-down"></i>
+          <span class="caret"></span>
         </a>
         <ul class="dropdown-menu header-notifications">
           <li ng-repeat="notification in header.notifications">
-            <a ui-sref="accept({ contactId: notification.contactId })">
+            <a ng-click="header.onNotificationClick(notification)">
               <span style="background-image: url({{ notification.sender.imageUrl }})"></span>
-              <strong>{{ notification.sender.fullName }}</strong> さんからメッセージが届いています
+              <strong>{{ notification.sender.fullName }}</strong>
+              さんからメッセージが届いています
             </a>
           </li>
         </ul>
       </li>
       <li class="dropdown" uib-dropdown>
         <a class="dropdown-toggle" uib-dropdown-toggle>
-          <img ng-src="{{ header.auth.facebook.profileImageURL }}">
-          <i class="fa fa-caret-down"></i>
+          <img ng-src="{{ header.data.me.imageUrl }}">
+          <span class="caret"></span>
         </a>
         <ul class="dropdown-menu">
-          <li><a ui-sref="account">アカウント</a></li>
-          <li><a ng-click="header.logout()">ログアウト</a></li>
+          <li>
+            <a ui-sref="account">
+              <span>{{ 'header.menu.account' | translate }}</span>
+            </a>
+          </li>
+          <li>
+            <a ng-click="header.logout()">
+              <span>{{ 'header.menu.logout' | translate }}</span>
+            </a>
+          </li>
         </ul>
       </li>
     </ul>
-    <ul class="nav navbar-nav navbar-right" ng-if="!header.auth">
+    <ul class="nav navbar-nav navbar-right" ng-if="!header.isLoggedIn()">
       <li class="dropdown" uib-dropdown>
         <a class="dropdown-toggle" uib-dropdown-toggle>
-          ログイン
-          <i class="fa fa-caret-down"></i>
+          <i class="fa fa-sign-in fa-2x"></i>
+          <span>{{ 'header.menu.login' | translate }}</span>
+          <span class="caret"></span>
         </a>
         <div class="dropdown-menu login-btns">
           <login-buttons></login-buttons>

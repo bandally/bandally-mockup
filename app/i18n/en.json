@@ -1,0 +1,12 @@
+{
+  "header": {
+    "menu": {
+      "locale": "Locale",
+      "dashboard": "Dashboard",
+      "notification": "Notifications",
+      "account": "Account",
+      "login": "Sign in",
+      "logout": "Sign out"
+    }
+  }
+}

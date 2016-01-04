@@ -12,6 +12,8 @@
     'toastr',
     'ui.calendar',
     'firebase',
+    'pascalprecht.translate',
+    'ngFileUpload',
     'app.layout',
     'app.home',
     'app.spots',
@@ -26,7 +28,22 @@
 (function () {
   'use strict';
 
-  angular.module('app.core', []);
+  angular.module('app.core', []).config(config);
+
+  config.$inject = ['$translateProvider'];
+
+  function config($translateProvider) {
+    $translateProvider.useStaticFilesLoader({
+      prefix: 'app/i18n/',
+      suffix: '.json'
+    });
+    $translateProvider.uniformLanguageTag('bcp47').determinePreferredLanguage();
+  	// $translateProvider.preferredLanguage('ja');
+  	// $translateProvider.fallbackLanguage('en');
+  	$translateProvider.useMissingTranslationHandlerLog();
+  	$translateProvider.useLocalStorage();
+  	$translateProvider.useSanitizeValueStrategy('escaped');
+  }
 })();
 
 (function () {
@@ -157,11 +174,15 @@
         controllerAs: 'account',
         templateUrl: 'app/account/account.html',
         resolve: {
-          currentAuth: ['auth', function (auth) {
-            return auth.firebase.$requireAuth();
-          }]
+          currentAuth: getCurrentAuth
         }
       });
+  }
+
+  getCurrentAuth.$inject = ['auth'];
+
+  function getCurrentAuth(auth) {
+    return auth.check(true);
   }
 })();
 
@@ -205,30 +226,191 @@
 
   angular.module('app.core').factory('auth', auth);
 
-  auth.$inject = ['$firebaseAuth', '$http', '$q', 'config'];
+  auth.$inject = ['$cookies', '$firebaseAuth', '$q', '$rootScope', 'account', 'cache', 'config', 'data', 'User', 'user', 'userId'];
 
-  function auth($firebaseAuth, $http, $q, config) {
+  function auth($cookies, $firebaseAuth, $q, $rootScope, account, cache, config, data, User, user, userId) {
 
+    var _isInitialized = false;
+    var _newAuth = {};
+    var _newUser = {};
+    var _defferd;
+
+    var firebaseRef = new Firebase(config.serverUrl);
+    var firebase = $firebaseAuth(firebaseRef);
     return new Auth();
 
     function Auth() {
-      var firebaseRef = new Firebase(config.serverUrl);
       return {
-        firebase: $firebaseAuth(firebaseRef),
-        tokenGenerator: function (uid) {
-          var deferred = $q.defer();
-          var params = {
-            uid: uid
-          };
-          $http.get(config.authApiUrl, { params: params }).then(function (response) {
-            return deferred.resolve(response);
-          }, function (response) {
-            return deferred.reject(response);
-          });
-          return deferred.promise;
-        }
+        firebase: firebase,
+        check: check,
+        login: login,
+        logout: logout
       };
     }
+
+    function check(required) {
+      if (_isInitialized) {
+        return required ? firebase.$requireAuth() : firebase.$waitForAuth();
+      }
+      _isInitialized = true;
+      return required ? firebase.$requireAuth().then(checkSuccess) : firebase.$waitForAuth().then(checkSuccess);
+    }
+
+    function checkSuccess(authData) {
+      _defferd = $q.defer();
+      if (_.isNull(authData)) {
+        _isInitialized = false;
+        _defferd.resolve();
+        return _defferd.promise;
+      }
+      var me = new User(authData.uid);
+      me.$loaded(function (me) {
+        data.me = me;
+      });
+      user.get(authData.uid).$loaded().then(function (me) {
+        $rootScope.me = me;
+        angular.merge($rootScope, {
+          statuses: {
+            userId: authData.uid,
+            userName: user.name
+          }
+        });
+        return _defferd.resolve(authData);
+      });
+      return _defferd.promise;
+    }
+
+    function login() {
+      _defferd = $q.defer();
+      if (cache.has()) {
+        fbLoginWithToken();
+      } else {
+        fbLogin();
+      }
+      return _defferd.promise;
+    }
+
+    function fbLogin() {
+      var scope = ['public_profile', 'email'];
+      return firebase.$authWithOAuthPopup('facebook', {
+        scope: scope.join()
+      }).then(fbLoginSuccess).catch(authenticationFailed);
+    }
+
+    function fbLoginWithToken() {
+      return firebase
+        .$authWithOAuthToken('facebook', cache.get())
+        .then(fbLoginSuccess)
+        .catch(authenticationFailed);
+    }
+
+    function fbLoginSuccess(authData) {
+      _newAuth = authData;
+      cache.put(_newAuth.facebook.accessToken);
+      return account.save(_newAuth.uid, _newAuth).then(accountSaveSuccess, authenticationFailed);
+    }
+
+    function accountSaveSuccess(ref) {
+      return user.exists(_newAuth.uid).then(userExistsSuccess, userExistsFailed);
+    }
+
+    function userExistsSuccess(userData) {
+      angular.merge($rootScope, {
+        statuses: {
+          userId: _newAuth.uid,
+          userName: userData.name
+        }
+      });
+      return _defferd.resolve(userData);
+    }
+
+    function userExistsFailed() {
+      _newUser.name = _newAuth.facebook.email ? _newAuth.facebook.email.split('@')[0] : null;
+      _newUser.fullName = _newAuth.facebook.displayName || null;
+      _newUser.email = _newAuth.facebook.email || null;
+      _newUser.gender = _newAuth.facebook.cachedUserProfile.gender || null;
+      _newUser.imageUrl = _newAuth.facebook.profileImageURL || null;
+      return user.save(_newAuth.uid, _newUser).then(userSaveSuccess, authenticationFailed);
+    }
+
+    function userSaveSuccess(ref) {
+      return userId.save(_newUser.name, _newAuth.uid).then(userIdSaveSuccess, authenticationFailed);
+    }
+
+    function userIdSaveSuccess(ref) {
+      return _defferd.resolve();
+    }
+
+    function authenticationFailed() {
+      return _defferd.reject();
+    }
+
+    function logout() {
+      firebase.$unauth();
+      return $cookies.remove('bandally');
+    }
+  }
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app.core').factory('cache', cache);
+
+  cache.$inject = ['$cookies'];
+
+  function cache($cookies) {
+
+    var _name = 'bandally';
+    var _expires = new Date(1000 * 60 * 60 * 24 * 365 * 10 + (new Date()).getTime());
+
+    return new Cache();
+
+    function Cache() {
+      return {
+        has: has,
+        get: get,
+        put: put
+      };
+    }
+
+    function has() {
+      var data = $cookies.get(_name);
+      return !_.isUndefined(data);
+    }
+
+    function get() {
+      var data = $cookies.get(_name);
+      return data || false;
+    }
+
+    function put(data) {
+      if (!data) {
+        return false;
+      }
+      $cookies.put(_name, data, {
+        expires: _expires
+      });
+      return data;
+    }
+  }
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app.core').factory('config', config);
+
+  config.$inject = [];
+
+  function config() {
+    var Config = function () {
+      return {
+        'serverUrl': 'https://bandally.firebaseio.com/',
+        'authApiUrl': 'http://localhost:4000'
+      };
+    };
+    return new Config();
   }
 })();
 
@@ -274,24 +456,6 @@
 (function () {
   'use strict';
 
-  angular.module('app.core').factory('config', config);
-
-  config.$inject = [];
-
-  function config() {
-    var Config = function () {
-      return {
-        'serverUrl': 'https://bandally.firebaseio.com/',
-        'authApiUrl': 'http://localhost:4000'
-      };
-    };
-    return new Config();
-  }
-})();
-
-(function () {
-  'use strict';
-
   angular.module('app.core').config(route);
 
   route.$inject = ['$urlRouterProvider'];
@@ -306,9 +470,11 @@
 
   angular.module('app.core').run(run);
 
-  run.$inject = ['$cookies', '$rootScope', '$state', 'auth', 'user'];
+  run.$inject = ['$cookies', '$rootScope', '$state', 'auth', 'cache', 'toastr', 'User'];
 
-  function run($cookies, $rootScope, $state, auth, user) {
+  function run($cookies, $rootScope, $state, auth, cache, toastr, User) {
+
+    $rootScope.me = {};
 
     // 該当ページのスラッグをbodyのclassに入れるため
     $rootScope.$on('$stateChangeSuccess', function (event, toState, toParams, fromState, fromParams, error) {
@@ -322,55 +488,87 @@
     // 未ログインのままログインが必要なページに遷移した場合の処理
     $rootScope.$on('$stateChangeError', function (event, toState, toParams, fromState, fromParams, error) {
       if (error === 'AUTH_REQUIRED') {
+        toastr.warning('You require sign in!', 'Warning');
         return $state.go('spots');
       }
     });
 
-    // 初期化時にログイン済みかチェック
-    auth.firebase.$waitForAuth().then(function (authData) {
+    // 認証が完了した際の処理
+    // auth.firebase.$onAuth(function (authData) {
+    //   if (_.isNull(authData)) return;
+    //   var me = new User(authData.uid);
+    //   me.$loaded(function (me) {
+    //     $rootScope.me = me;
+    //     $rootScope.$broadcast('loggedIn');
+    //   });
+    // });
+  }
+})();
 
-      // ログイン済みの場合はトークンを更新してリターン
-      if (!_.isNull(authData)) {
-        putToken(authData.facebook.accessToken);
-        setUserData(authData.uid);
-        return $state.go('home');
+(function () {
+  'use strict';
+
+  angular.module('app.core').factory('data', data);
+
+  data.$inject = [];
+
+  function data() {
+    return {
+      me: {}
+    };
+  }
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app').directive('fileUpload', fileUpload);
+
+  fileUpload.$inject = [];
+
+  function fileUpload() {
+    return {
+      templateUrl: 'app/core/file-upload.html',
+      scope: {},
+      controller: FileUploadController,
+      controllerAs: 'fileUpload',
+      bindToController: true
+    };
+  }
+
+  FileUploadController.$inject = ['$rootScope', 'photo', 'toastr', 'Upload', 'user'];
+
+  function FileUploadController($rootScope, photo, toastr, Upload, user) {
+
+    var _photoData = {};
+
+    var vm = this;
+    vm.picFile = null;
+    vm.uploadPic = uploadPic;
+
+    function uploadPic(file) {
+      if (_.isNull(file)) {
+        return toastr.warning('Image is not selected.');
       }
-
-      var token = getToken();
-
-      // トークンを持っていない場合は未ログインユーザーとしてリターン
-      if (_.isUndefined(token)) {
-        return $state.go('spots');
-      }
-
-      // トークンでログイン可能かチェック
-      auth.firebase.$authWithOAuthToken('facebook', token).then(function (authData) {
-        putToken(authData.facebook.accessToken);
-        setUserData(authData.uid);
-        return $state.go('home');
-      }).catch(function (error) {
-        return $state.go('spots');
-      });
-    });
-
-    function putToken(token) {
-      $cookies.put('bandally', token, {
-        expires: new Date(1000 * 60 * 60 * 24 * 365 * 10 + (new Date()).getTime())
-      });
+      return encode(file);
     }
 
-    function getToken() {
-      return $cookies.get('bandally');
+    function encode(file) {
+      return Upload.base64DataUrl(file).then(uplodeEncodedImage);
     }
 
-    function setUserData(id) {
-      user.get(id).$loaded().then(function (user) {
-        angular.merge($rootScope, {
-          statuses: {
-            userId: id,
-            userName: user.name
-          }
-        });
+    function uplodeEncodedImage(base64Image) {
+      _photoData = {
+        image: base64Image,
+        userId: $rootScope.statuses.userId
+      };
+      return photo.add(_photoData).then(updateUserData);
+    }
+
+    function updateUserData(ref) {
+      vm.picFile = null;
+      user.addPhoto(ref.key()).then(function (ref) {
+        toastr.success('Upload Success!');
       });
     }
   }
@@ -428,9 +626,9 @@
     };
   }
 
-  LoginButtonsController.$inject = ['$cookies', '$rootScope', '$state', 'account', 'auth', 'user'];
+  LoginButtonsController.$inject = ['$cookies', '$rootScope', '$state', 'account', 'auth', 'toastr', 'user'];
 
-  function LoginButtonsController($cookies, $rootScope, $state, account, auth, user) {
+  function LoginButtonsController($cookies, $rootScope, $state, account, auth, toastr, user) {
 
     var vm = this;
     vm.fbLogin = fbLogin;
@@ -440,56 +638,16 @@
     function activate() {}
 
     function fbLogin() {
-      var scope = ['public_profile', 'email'];
-      auth.firebase.$authWithOAuthPopup('facebook', {
-        scope: scope.join()
-      }).then(fbLoginSuccess).catch(fbLoginError);
+      return auth.login().then(fbLoginSuccess, fbLoginFailed);
     }
 
-    function fbLoginSuccess(authData) {
-      putToken(authData.token);
-      account.save(authData.uid, authData).then(function (ref) {
-
-        // すでにusersに登録があればホームに遷移
-        if (!_.isNull(user.get(authData.uid).$value)) {
-          return $state.go('home');
-        }
-
-        var userData = {};
-        userData.name = authData.facebook.email ? authData.facebook.email.split('@')[0] : null;
-        userData.fullName = authData.facebook.displayName || null;
-        userData.email = authData.facebook.email || null;
-        userData.gender = authData.facebook.cachedUserProfile.gender || null;
-        userData.imageUrl = authData.facebook.profileImageURL || null;
-        user.save(authData.uid, userData).then(userSaveSuccess, userSaveError);
-      });
+    function fbLoginSuccess() {
+      return $state.go('home');
     }
 
-    function fbLoginError(error) {
-      console.log('Authentication failed:', error);
-    }
-
-    function userSaveSuccess(ref) {
-      var userId = ref.key();
-      var userName = user.get(userId).name;
-      $rootScope.statuses = {
-        userId: userId,
-        userName: userName
-      };
-      $state.go('home');
-    }
-
-    function userSaveError(error) {
-      console.log(error);
-    }
-
-    function putToken(token) {
-      var now = (new Date()).getTime();
-      var expires = new Date(1000 * 60 * 60 * 24 * 365 * 10 + now);
-      var options = {
-      	expires: expires
-      };
-      $cookies.put('bandally', token, options);
+    function fbLoginFailed() {
+      toastr.error('Authentication failed.', 'Error');
+      return $state.go('spots');
     }
   }
 })();
@@ -535,9 +693,9 @@
 
   angular.module('app.core').factory('photo', photo);
 
-  photo.$inject = ['$firebaseArray', '$firebaseObject', 'config'];
+  photo.$inject = ['$firebaseArray', '$firebaseObject', 'config', 'user'];
 
-  function photo($firebaseArray, $firebaseObject, config) {
+  function photo($firebaseArray, $firebaseObject, config, user) {
 
     return new Photo();
 
@@ -559,6 +717,29 @@
           var newPhoto = $firebaseObject(newPhotoRef);
           newPhoto = angular.merge(newPhoto, data);
           return newPhoto.$save();
+        },
+        remove: function (id) {
+          var photoRef = ref.child(id);
+          var photo = $firebaseObject(photoRef);
+          return photo.$remove();
+        },
+        upload: function (data) {
+          ref.transaction(function (currentData) {
+            return $firebaseArray(ref).$add(data).then(function (photoRef) {
+              return user.addPhoto(photoRef.key()).then(function (userRef) {
+                return userRef;
+              });
+            });
+          }, function (error, committed, snapshot) {
+            if (error) {
+              return console.log('Transaction failed abnormally!', error);
+            }
+            if (!committed) {
+              return console.log('We aborted the transaction.');
+            }
+            console.log(snapshot);
+            return snapshot;
+          });
         }
       };
     }
@@ -579,6 +760,9 @@
     function Room() {
       var ref = new Firebase(config.serverUrl + 'rooms');
       return {
+        getNewRef: function () {
+          return ref.push();
+        },
         getAll: function () {
           return $firebaseArray(ref);
         },
@@ -607,9 +791,9 @@
 
   angular.module('app.core').factory('spot', spot);
 
-  spot.$inject = ['$firebaseArray', '$firebaseObject', 'config'];
+  spot.$inject = ['$firebaseArray', '$firebaseObject', '$q', 'config'];
 
-  function spot($firebaseArray, $firebaseObject, config) {
+  function spot($firebaseArray, $firebaseObject, $q, config) {
 
     return new Spot();
 
@@ -619,14 +803,53 @@
         getAll: function () {
           return $firebaseArray(ref);
         },
-        add: function (data) {
-          return $firebaseArray(ref).$add(data);
+        get: function (id) {
+          var spotRef = ref.child(id);
+          return $firebaseObject(spotRef);
         },
         save: function (data) {
           var newSpotRef = ref.child(data.uid);
           var newSpot = $firebaseObject(newSpotRef);
           newSpot = angular.merge(newSpot, data);
           return newSpot.$save();
+        },
+        add: function (photoId, latlng) {
+          var geofire = new GeoFire(ref);
+          return geofire.set(photoId, latlng);
+        },
+        query: function (center, radius) {
+          var deferred = $q.defer();
+          var spots = [];
+          var geoFire = new GeoFire(ref);
+          var geoQuery = geoFire.query({
+            center: center,
+            radius: radius
+          });
+          geoQuery.on('key_entered', function (id, location, distance) {
+            spots.push({
+              id: id,
+              location: location,
+              distance: distance
+            });
+          });
+          geoQuery.on('ready', function () {
+            return deferred.resolve(spots);
+          });
+          return deferred.promise;
+        },
+        distance: function (locations) {
+          return GeoFire.distance(locations[0], locations[1]);
+        },
+        exists: function (photoId) {
+          var deferred = $q.defer();
+          ref.once('value', function (snapshot) {
+            if (snapshot.exists()) {
+              return deferred.resolve();
+            } else {
+              return deferred.reject();
+            }
+          });
+          return deferred.promise;
         }
       };
     }
@@ -643,6 +866,39 @@
   function ticket($firebaseArray, config) {
     var ref = new Firebase(config.serverUrl + 'tickets');
     return $firebaseArray(ref);
+  }
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app.core').factory('Transaction', Transaction);
+
+  Transaction.$inject = ['$firebaseArray', '$firebaseObject', '$q', 'config'];
+
+  function Transaction($firebaseArray, $firebaseObject, $q, config) {
+
+    var ref = new Firebase(config.serverUrl);
+
+    return new Transaction();
+
+    function Transaction() {
+      return {
+        save: save
+      };
+    }
+
+    function save(data) {
+      var deferred = $q.defer();
+      ref.update(data, function (error) {
+        if (error) {
+          return deferred.reject(error);
+        } else {
+          return deferred.resolve(ref);
+        }
+      });
+      return deferred.promise;
+    }
   }
 })();
 
@@ -670,14 +926,66 @@
         add: function (data) {
           return $firebaseArray(ref).$add(data);
         },
-        save: function (key, data) {
+        save: function (key, value) {
           var newUserIdRef = ref.child(key);
           var newUserId = $firebaseObject(newUserIdRef);
-          newUserId = angular.merge(newUserId, data);
-          return newUser.$save();
+          newUserId.$value = value;
+          return newUserId.$save();
         }
       };
     }
+  }
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app.core').factory('UserFactory', UserFactory);
+
+  UserFactory.$inject = ['$firebaseObject', 'config'];
+
+  function UserFactory($firebaseObject, config) {
+
+    return $firebaseObject.$extend({
+      $$updated: function (snapshot) {
+        var changed = $firebaseObject.prototype.$$updated.apply(this, arguments);
+        var self = this;
+        getPhotos(self);
+        getLanguages(self);
+        return changed;
+      }
+    });
+
+    function getPhotos(user) {
+      var photosRef = new Firebase(config.serverUrl + 'photos');
+      var photosCollection = [];
+      angular.forEach(user.photos, function (bool, photoId) {
+        var photoRef = photosRef.child(photoId);
+        photosCollection.push($firebaseObject(photoRef));
+      });
+      user.photosCollection = photosCollection;
+    }
+
+    function getLanguages(user) {
+      var languagesRef = new Firebase(config.serverUrl + 'languages');
+      var languagesCollection = [];
+      angular.forEach(user.languages, function (bool, languageId) {
+        var languageRef = languagesRef.child(languageId);
+        languagesCollection.push($firebaseObject(languageRef));
+      });
+      user.languagesCollection = languagesCollection;
+    }
+  }
+
+  angular.module('app.core').factory('User', User);
+
+  User.$inject = ['config', 'UserFactory'];
+
+  function User(config, UserFactory) {
+    var ref = new Firebase(config.serverUrl + 'users');
+    return function (userId) {
+      return new UserFactory(ref.child(userId));
+    };
   }
 })();
 
@@ -690,11 +998,19 @@
 
   function user($firebaseArray, $firebaseObject, $q, $rootScope, config, userId) {
 
+    var _me = {};
     return new User();
 
     function User() {
       var ref = new Firebase(config.serverUrl + 'users');
       return {
+        me: _me,
+        setMe: function (id) {
+          var userRef = ref.child(id);
+          return $firebaseObject(userRef).$loaded().then(function (me) {
+            _me = me;
+          });
+        },
         getAll: function () {
           return $firebaseArray(ref);
         },
@@ -702,14 +1018,58 @@
           var userRef = ref.child(id);
           return $firebaseObject(userRef);
         },
+        getByName: function (name) {
+          var deferred = $q.defer();
+          userId.get(name).$loaded().then(function (userId) {
+            var userRef = ref.child(userId.$value);
+            return deferred.resolve($firebaseObject(userRef).$loaded());
+          });
+          return deferred.promise;
+        },
         add: function (data) {
           return $firebaseArray(ref).$add(data);
         },
         save: function (key, data) {
-          var newUserRef = ref.child(key);
-          var newUser = $firebaseObject(newUserRef);
-          newUser = angular.merge(newUser, data);
-          return newUser.$save();
+          var deferred = $q.defer();
+          var saveUserRef = ref.child(key);
+          $firebaseObject(saveUserRef).$loaded().then(
+            function (saveUser) {
+              return angular.merge(saveUser, data).$save().then(
+                function (ref) {
+                  return deferred.resolve(ref);
+                },
+                function (error) {
+                  return deferred.reject(error);
+                }
+              );
+            },
+            function (error) {
+              return deferred.reject(error);
+            }
+          );
+          return deferred.promise;
+        },
+        exists: function (id) {
+          var deferred = $q.defer();
+          var userRef = ref.child(id);
+          $firebaseObject(userRef).$loaded().then(function (user) {
+            if (_.isNull(user.$value)) {
+              return deferred.reject();
+            }
+            return deferred.resolve(user);
+          });
+          return deferred.promise;
+        },
+        addPhoto: function (photoId) {
+          var photoRef = ref.child($rootScope.statuses.userId).child('photos').child(photoId);
+          var newPhoto = $firebaseObject(photoRef);
+          newPhoto.$value = true;
+          return newPhoto.$save();
+        },
+        removePhoto: function (photoId) {
+          var photoRef = ref.child($rootScope.statuses.userId).child('photos').child(photoId);
+          var photo = $firebaseObject(photoRef);
+          return photo.$remove();
         },
         addNotification: function (userName, data) {
           var deferred = $q.defer();
@@ -718,6 +1078,37 @@
             return $firebaseArray(notificationRef).$add(data).then(function (ref) {
               return deferred.resolve(ref);
             });
+          });
+          return deferred.promise;
+        },
+        addFavorite: function (favoriteUserId) {
+          var favoritesRef = ref.child($rootScope.statuses.userId).child('favorites').child(favoriteUserId);
+          var newFavorite = $firebaseObject(favoritesRef);
+          newFavorite.$value = true;
+          return newFavorite.$save();
+        },
+        addFavoritedCount: function (favoriteUserId) {
+          var deferred = $q.defer();
+          var favoritedCountRef = ref.child(favoriteUserId).child('favoritedCount');
+          var favoritedCount = $firebaseObject(favoritedCountRef);
+          favoritedCount.$loaded().then(function (favoritedCount) {
+            favoritedCount.$value = _.isUndefined(favoritedCount.$value) ? 1 : favoritedCount.$value + 1;
+            return deferred.resolve(favoritedCount.$save());
+          });
+          return deferred.promise;
+        },
+        removeFavorite: function (favoriteUserId) {
+          var favoriteRef = ref.child($rootScope.statuses.userId).child('favorites').child(favoriteUserId);
+          var favorite = $firebaseObject(favoriteRef);
+          return favorite.$remove();
+        },
+        removeFavoritedCount: function (favoriteUserId) {
+          var deferred = $q.defer();
+          var favoritedCountRef = ref.child(favoriteUserId).child('favoritedCount');
+          var favoritedCount = $firebaseObject(favoritedCountRef);
+          favoritedCount.$loaded().then(function (favoritedCount) {
+            favoritedCount.$value--;
+            return deferred.resolve(favoritedCount.$save());
           });
           return deferred.promise;
         }
@@ -731,32 +1122,105 @@
 
   angular.module('app').controller('HomeController', HomeController);
 
-  HomeController.$inject = ['$scope', '$state', 'currentAuth', 'toastr', 'user'];
+  HomeController.$inject = ['$rootScope', '$state', '$uibModal', 'photo', 'room', 'spot', 'toastr', 'user'];
 
-  function HomeController($scope, $state, currentAuth, toastr, user) {
+  function HomeController($rootScope, $state, $uibModal, photo, room, spot, toastr, user) {
+
+    var userId = $rootScope.statuses.userId;
 
     var vm = this;
-    vm.me = currentAuth;
+    vm.me = {};
+    vm.rooms = [];
+    vm.favoriteUsers = [];
+    vm.photos = [];
+    vm.removePhoto = removePhoto;
+    vm.showModal = showModal;
 
     activate();
 
     function activate() {
-      $scope.$on('$stateChangeSuccess', checkUserData);
-      getFavorites();
+      getMe();
+    }
+
+    function getMe() {
+      user.get(userId).$loaded().then(function (me) {
+        vm.me = me;
+        checkUserData();
+        getRoom();
+        getFavorites();
+        getPhotos();
+      });
     }
 
     function checkUserData() {
-      user.get(currentAuth.uid).$loaded().then(function (userData) {
-        if (_.isUndefined(userData.name) || _.isUndefined(userData.email)) {
-          toastr.warning('Please input your Username and Email.', 'Sorry, we can\'t get Email.');
-          return $state.go('account');
-        }
+      if (_.isUndefined(vm.me.name) || _.isUndefined(vm.me.email)) {
+        toastr.warning('Please input your Username and Email.', 'Sorry, we can\'t get Email.');
+        return $state.go('account');
+      }
+    }
+
+    function getRoom() {
+      angular.forEach(vm.me.rooms, function (bool, roomId) {
+        room.get(roomId).$loaded().then(function (room) {
+          vm.rooms.push(room);
+          angular.forEach(room, function (value, key) {
+            if (key !== 'guest' && key !== 'host') return;
+            if (value === userId) return;
+            user.get(value).$loaded().then(function (you) {
+              room.you = you;
+            });
+          });
+        });
       });
     }
 
     function getFavorites() {
-      // console.log(user.get(currentAuth.uid));
-      // user.get(currentAuth)
+      angular.forEach(vm.me.favorites, function (bool, userId) {
+        user.get(userId).$loaded().then(function (user) {
+          vm.favoriteUsers.push(user);
+        });
+      });
+    }
+
+    function getPhotos() {
+      angular.forEach(vm.me.photos, function (bool, photoId) {
+        photo.get(photoId).$loaded().then(function (photo) {
+          vm.photos.push(photo);
+          spot.get(photoId).$loaded().then(function (spot) {
+            photo.isSpot = !spot.hasOwnProperty('$value');
+          });
+        });
+      });
+    }
+
+    function removePhoto(photoId) {
+      user.removePhoto(photoId).then(function (ref) {
+        photo.remove(ref.key()).then(function (ref) {
+          toastr.success('Photo removed!');
+        });
+      });
+    }
+
+    function showModal(photoId) {
+      var modalInstance = $uibModal.open({
+        templateUrl: 'app/home/register-spot.html',
+        controller: 'RegisterSpotController',
+        controllerAs: 'registerSpot',
+        resolve: {
+          photoId: function () {
+            return photoId;
+          }
+        }
+      });
+      modalInstance.result.then(
+        function () {
+          return toastr.success('Spot registeration completed!');
+        },
+        function (reason) {
+          if (reason === 'cancel') return;
+          return toastr.error('Spot registeration failed!', 'Error');
+        }
+      );
     }
   }
 })();
@@ -776,11 +1240,102 @@
         controllerAs: 'home',
         templateUrl: 'app/home/home.html',
         resolve: {
-          currentAuth: ['auth', function (auth) {
-            return auth.firebase.$requireAuth();
-          }]
+          currentAuth: getCurrentAuth
         }
       });
+  }
+
+  getCurrentAuth.$inject = ['auth'];
+
+  function getCurrentAuth(auth) {
+    return auth.check(true);
+  }
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app').controller('RegisterSpotController', RegisterSpotController);
+
+  RegisterSpotController.$inject = ['$scope', '$uibModalInstance', 'photoId', 'spot'];
+
+  function RegisterSpotController($scope, $uibModalInstance, photoId, spot) {
+
+    var _spot = {};
+
+    var vm = this;
+    vm.map = {};
+    vm.addSpot = addSpot;
+    vm.cancel = cancel;
+
+    activate();
+
+    function activate() {
+      initialize();
+      setMap();
+      setMarker();
+    }
+
+    function initialize() {
+      _spot = {
+        latitude: 0,
+        longitude: 0
+      };
+    }
+
+    function setMap() {
+      vm.map = {
+        center: _spot,
+        zoom: 1,
+        events: {
+          click: setMarkerByMapClicked
+        }
+      };
+    }
+
+    function setMarker() {
+      vm.map.marker = {
+        key: 'marker',
+        coords: _spot,
+        options: {
+          draggable: true
+        },
+        events: {
+          dragend: setMarkerByMarkerDraged
+        }
+      };
+    }
+
+    function setMarkerByMapClicked(maps, eventName, args) {
+      _spot = {
+        latitude: args[0].latLng.lat(),
+        longitude: args[0].latLng.lng()
+      };
+      vm.map.marker.coords = _spot;
+      $scope.$apply();
+    }
+
+    function setMarkerByMarkerDraged(marker, eventName, model, args) {
+      _spot = {
+        latitude: marker.position.lat(),
+        longitude: marker.position.lng()
+      };
+    }
+
+    function addSpot() {
+      spot.add(photoId, _.values(_spot)).then(
+        function () {
+          $uibModalInstance.close();
+        },
+        function (error) {
+          $uibModalInstance.dismiss(error);
+        }
+      );
+    }
+
+    function cancel() {
+      $uibModalInstance.dismiss('cancel');
+    }
   }
 })();
 
@@ -789,11 +1344,12 @@
 
   angular.module('app').controller('AcceptController', AcceptController);
 
-  AcceptController.$inject = ['$state', '$stateParams', 'contact', 'room', 'user'];
+  AcceptController.$inject = ['$state', '$stateParams', 'contact', 'data', 'room', 'toastr', 'Transaction', 'User'];
 
-  function AcceptController($state, $stateParams, contact, room, user) {
+  function AcceptController($state, $stateParams, contact, data, room, toastr, Transaction, User) {
 
     var id = $stateParams.contactId;
+    var notificationId = $stateParams.notificationId;
 
     var vm = this;
     vm.contact = {};
@@ -805,26 +1361,36 @@
     function activate() {
       contact.get(id).$loaded().then(function (contact) {
         vm.contact = contact;
-        user.get(contact.guest).$loaded().then(function (guest) {
-          vm.contact.guestData = guest;
-        });
+        vm.contact.guestData = new User(contact.guest);
       });
     }
 
     function accept() {
-      var roomData = {
-        guest: vm.contact.guest,
-        host: vm.contact.host,
-      };
-      room.add(roomData).then(function (ref) {
-        var roomId = ref.key();
-        contact.remove(id).then(function (ref) {
-          console.log(ref);
-          $state.go('room', {
+      var newRoomId = room.getNewRef().key();
+      var saveData = {};
+      var saveKey1 = 'rooms/' + newRoomId + '/guest';
+      var saveKey2 = 'rooms/' + newRoomId + '/host';
+      var saveKey3 = 'users/' + vm.contact.guest + '/rooms/' + newRoomId;
+      var saveKey4 = 'users/' + vm.contact.host + '/rooms/' + newRoomId;
+      var saveKey5 = 'users/' + vm.contact.host + '/notifications/' + notificationId;
+      var saveKey6 = 'contacts/' + id;
+      saveData[saveKey1] = vm.contact.guest;
+      saveData[saveKey2] = vm.contact.host;
+      saveData[saveKey3] = true;
+      saveData[saveKey4] = true;
+      saveData[saveKey5] = null;
+      saveData[saveKey6] = null;
+      Transaction.save(saveData).then(
+        function (ref) {
+          toastr.success('承認しました');
+          return $state.go('room', {
             roomId: roomId
           });
-        });
-      });
+        },
+        function (error) {
+          return toastr.error('承認できませんでした');
+        }
+      );
     }
 
     function dontAccept() {
@@ -882,7 +1448,13 @@
             contactId: ref.key(),
             created: new Date().toString()
           };
-          user.addNotification(hostName, notificationData);
+          user.addNotification(hostName, notificationData).then(function (ref) {
+            $uibModalInstance.close();
+          }, function (error) {
+            $uibModalInstance.dismiss(error);
+          });
+        }, function (error) {
+          $uibModalInstance.dismiss(error);
         });
       });
     }
@@ -894,45 +1466,136 @@
 
   angular.module('app').controller('HostsController', HostsController);
 
-  HostsController.$inject = ['$uibModal', '$stateParams', 'currentAuth', 'language', 'photo', 'user', 'userId'];
+  HostsController.$inject = ['$interval', '$q', '$rootScope', '$stateParams', '$uibModal', 'currentAuth', 'language', 'photo', 'toastr', 'user'];
 
-  function HostsController($uibModal, $stateParams, currentAuth, language, photo, user, userId) {
+  function HostsController($interval, $q, $rootScope, $stateParams, $uibModal, currentAuth, language, photo, toastr, user) {
 
-    var id = $stateParams.userId;
+    var _userName = $stateParams.userId;
 
     var vm = this;
+    vm.isMe = $rootScope.statuses.userName === _userName;
+    vm.isFavorited = false;
     vm.me = currentAuth;
+    vm.userLanguages = [];
+    vm.userPhotos = [];
+    vm.userMessages = [];
+    vm.addFavorite = addFavorite;
+    vm.removeFavorite = removeFavorite;
     vm.showModal = showModal;
 
     activate();
 
     function activate() {
-      getUserData();
-      vm.images = photo.getAll();
+      getUserData().then(function () {
+        checkFavorited();
+        getUserLanguages();
+        getUserPhotos().then(startBgCarousel);
+        vm.userMessages = _.values(vm.user.messages);
+        // vm.user.age = _.isUndefined(user.birth) ? null : Math.floor(moment(new Date()).diff(moment(user.birth), 'years', true));
+      });
     }
 
     function getUserData() {
-      userId.get(id).$loaded().then(function (userId) {
-        user.get(userId.$value).$loaded().then(function (user) {
-          vm.user = user;
-          vm.user.age = _.isUndefined(user.birth) ? null : Math.floor(moment(new Date()).diff(moment(user.birth), 'years', true));
-          vm.user.languageNames = [];
-          angular.forEach(user.languages, function (value, key) {
-            language.get(key).$loaded().then(function (language) {
-              vm.user.languageNames.push(language.$value);
-            });
+      var deferred = $q.defer();
+      user.getByName(_userName).then(function (user) {
+        vm.user = user;
+        return deferred.resolve();
+      });
+      return deferred.promise;
+    }
+
+    function getUserLanguages() {
+      var deferred = $q.defer();
+      var promises = [];
+      angular.forEach(vm.user.languages, function (value, key) {
+        promises.push((function () {
+          var deferred = $q.defer();
+          language.get(key).$loaded().then(function (language) {
+            vm.userLanguages.push(language.$value);
+            return deferred.resolve();
           });
-          vm.user.messageCollection = _.values(user.messages);
+          return deferred.promise;
+        })());
+      });
+      $q.all(promises).then(function () {
+        return deferred.resolve();
+      });
+      return deferred.promise;
+    }
+
+    function getUserPhotos() {
+      var deferred = $q.defer();
+      var promises = [];
+      angular.forEach(vm.user.photos, function (value, key) {
+        promises.push((function () {
+          var deferred = $q.defer();
+          photo.get(key).$loaded().then(function (photo) {
+            vm.userPhotos.push(photo);
+            return deferred.resolve();
+          });
+          return deferred.promise;
+        })());
+      });
+      $q.all(promises).then(function () {
+        return deferred.resolve();
+      });
+      return deferred.promise;
+    }
+
+    function checkFavorited() {
+      user.get($rootScope.statuses.userId).$loaded().then(function (user) {
+        if (_.isUndefined(user.favorites)) {
+          vm.isFavorited = false;
+          return;
+        }
+        vm.isFavorited = !_.isUndefined(user.favorites[vm.user.$id]);
+      });
+    }
+
+    function startBgCarousel() {
+      vm.activeBg = 0;
+      $interval(function () {
+        if (vm.activeBg === vm.userPhotos.length - 1) {
+          vm.activeBg = 0;
+          return;
+        }
+        return vm.activeBg++;
+      }, 6000);
+    }
+
+    function addFavorite() {
+      user.addFavorite(vm.user.$id).then(function (ref) {
+        user.addFavoritedCount(vm.user.$id).then(function (ref) {
+          vm.isFavorited = true;
+          return toastr.success('お気に入りに追加しました');
+        });
+      });
+    }
+
+    function removeFavorite() {
+      user.removeFavorite(vm.user.$id).then(function (ref) {
+        user.removeFavoritedCount(vm.user.$id).then(function (ref) {
+          vm.isFavorited = false;
+          return toastr.success('お気に入りを解除しました');
         });
       });
     }
 
     function showModal() {
-      $uibModal.open({
+      var modalInstance = $uibModal.open({
         templateUrl: 'app/hosts/contact.html',
         controller: 'ContactController',
         controllerAs: 'contact'
       });
+      modalInstance.result.then(
+        function () {
+          return toastr.success('送信しました');
+        },
+        function (reason) {
+          if (reason === 'cancel') return;
+          return toastr.error('送信できませんでした', 'Error');
+        }
+      );
     }
   }
 })();
@@ -952,22 +1615,24 @@
         controllerAs: 'hosts',
         templateUrl: 'app/hosts/hosts.html',
         resolve: {
-          currentAuth: ['auth', function (auth) {
-            return auth.firebase.$requireAuth();
-          }]
+          currentAuth: getCurrentAuth
         }
       })
       .state('accept', {
-        url: '/accept/:contactId',
+        url: '/accept/:contactId:notificationId',
         controller: 'AcceptController',
         controllerAs: 'accept',
         templateUrl: 'app/hosts/accept.html',
         resolve: {
-          currentAuth: ['auth', function (auth) {
-            return auth.firebase.$requireAuth();
-          }]
+          currentAuth: getCurrentAuth
         }
       });
+  }
+
+  getCurrentAuth.$inject = ['auth'];
+
+  function getCurrentAuth(auth) {
+    return auth.check(true);
   }
 })();
 
@@ -988,35 +1653,47 @@
     };
   }
 
-  HeaderController.$inject = ['$cookies', '$state', 'auth', 'user'];
+  HeaderController.$inject = ['$scope', '$state', '$translate', 'auth', 'data', 'User'];
 
-  function HeaderController($cookies, $state, auth, user) {
+  function HeaderController($scope, $state, $translate, auth, data, User) {
 
     var vm = this;
-    vm.auth = {};
+    vm.data = data;
     vm.notifications = [];
+    vm.changeLocale = changeLocale;
+    vm.onNotificationClick = onNotificationClick;
     vm.logout = logout;
+    vm.isLoggedIn = isLoggedIn;
 
     activate();
 
     function activate() {
-      auth.firebase.$onAuth(function (authData) {
-        vm.auth = authData;
-        if (!authData.uid) return;
-        user.get(authData.uid).$loaded().then(function (userData) {
-          vm.notifications = _.values(userData.notifications);
-          angular.forEach(vm.notifications, function (notification) {
-            user.get(notification.from).$loaded().then(function (sender) {
-              notification.sender = sender;
-            });
-          });
+      $scope.$watch('header.data.me', function (me) {
+        angular.forEach(me.notifications, function (notification, notificationId) {
+          notification.id = notificationId;
+          vm.notifications.push(notification);
+          notification.sender = new User(notification.from);
         });
       });
     }
 
+    function changeLocale(langKey) {
+      $translate.use(langKey);
+    }
+
+    function onNotificationClick(notification) {
+      $state.go('accept', {
+        contactId: notification.contactId,
+        notificationId: notification.id
+      });
+    }
+
+    function isLoggedIn() {
+      return _.size(data.me);
+    }
+
     function logout() {
-      auth.firebase.$unauth();
-      $cookies.remove('bandally');
+      auth.logout();
       $state.go('spots');
     }
   }
@@ -1196,18 +1873,22 @@
         controllerAs: 'room',
         templateUrl: 'app/room/room.html',
         resolve: {
-          currentAuth: ['auth', function (auth) {
-            return auth.firebase.$requireAuth();
-          }]
+          currentAuth: getCurrentAuth
         }
       });
+  }
+
+  getCurrentAuth.$inject = ['auth'];
+
+  function getCurrentAuth(auth) {
+    return auth.check(true);
   }
 })();
 
 (function () {
   'use strict';
 
-  angular.module('app').controller('SpotsController', SpotsController);
+  angular.module('app.spots').controller('SpotsController', SpotsController);
 
   SpotsController.$inject = ['$rootScope', '$scope', 'currentAuth', 'language', 'photo', 'spot', 'uiGmapGoogleMapApi', 'user'];
 
@@ -1236,18 +1917,26 @@
 
     function setGoogleMap() {
       setMapHeight();
-      uiGmapGoogleMapApi.then(function (maps) {
-        vm.map.center = {
-          latitude: 0,
-          longitude: 0
-        };
-        vm.map.zoom = 2;
-        vm.map.events = {
-          bounds_changed: boundsChanged,
-          drag: drag,
-          dragend: dragend
-        };
-      });
+      vm.map.center = {
+        latitude: 0,
+        longitude: 0
+      };
+      vm.map.zoom = 3;
+      vm.map.events = {
+        bounds_changed: boundsChanged,
+        drag: drag,
+        dragend: dragend
+      };
+      vm.map.bounds = {
+        northeast: {
+          latitude: 180,
+          longitude: 180
+        },
+        southwest: {
+          latitude: -180,
+          longitude: -180
+        }
+      };
     }
 
     function setMapHeight() {
@@ -1309,7 +1998,18 @@
 
     function getSpots() {
       vm.markers = [];
-      spot.getAll().$loaded().then(getSpotsSuccess);
+      var locations = [];
+      angular.forEach(_bounds, function (points) {
+        var location = [];
+        angular.forEach(points, function (point) {
+          location.push(point);
+        });
+        locations.push(location);
+      });
+      var distance = spot.distance(locations);
+      var radius = distance / 2;
+      spot.query(_.values(vm.map.center), radius).then(getSpotsSuccess);
+      // spot.getAll().$loaded().then(getSpotsSuccess);
     }
 
     function getSpotsSuccess(spots) {
@@ -1317,15 +2017,18 @@
     }
 
     function setSpotData(spot, index) {
-      var isCurrentLatitude = spot.geoCode.latitude < _bounds.ne.lat && spot.geoCode.latitude > _bounds.sw.lat;
-      var isCurrentLongitude = spot.geoCode.longitude < _bounds.ne.lng && spot.geoCode.longitude > _bounds.sw.lng;
-      if (!isCurrentLatitude || !isCurrentLongitude) {
-        return;
-      }
+      // var isCurrentLatitude = spot.geoCode.latitude < _bounds.ne.lat && spot.geoCode.latitude > _bounds.sw.lat;
+      // var isCurrentLongitude = spot.geoCode.longitude < _bounds.ne.lng && spot.geoCode.longitude > _bounds.sw.lng;
+      // if (!isCurrentLatitude || !isCurrentLongitude) {
+      //   return;
+      // }
       var newSpot = {};
-      newSpot.id = spot.$id;
-      newSpot.latitude = spot.geoCode.latitude;
-      newSpot.longitude = spot.geoCode.longitude;
+      // newSpot.id = spot.$id;
+      newSpot.id = spot.id;
+      // newSpot.latitude = spot.geoCode.latitude;
+      // newSpot.longitude = spot.geoCode.longitude;
+      newSpot.latitude = spot.location[0];
+      newSpot.longitude = spot.location[1];
       newSpot.show = true;
       newSpot.events = {
         mouseover: function (marker) {
@@ -1336,11 +2039,13 @@
         }
       };
       newSpot.photos = [];
-      photo.get(spot.photoId).$loaded().then(function (photo) {
+      // photo.get(spot.photoId).$loaded().then(function (photo) {
+      photo.get(spot.id).$loaded().then(function (photo) {
         newSpot.photos.push(photo);
         photo.user = {};
         user.get(photo.userId).$loaded().then(function (user) {
           photo.user = user;
+          newSpot.userId = user.name;
           var keepGoing = true;
           angular.forEach(vm.languages, function (language) {
             if (!keepGoing) return;
@@ -1379,11 +2084,15 @@
         controllerAs: 'spots',
         templateUrl: 'app/spots/spots.html',
         resolve: {
-          currentAuth: ['auth', function (auth) {
-            return auth.firebase.$waitForAuth();
-          }]
+          currentAuth: getCurrentAuth
         }
       });
+  }
+
+  getCurrentAuth.$inject = ['auth'];
+
+  function getCurrentAuth(auth) {
+    return auth.check(false);
   }
 })();
 
@@ -1450,9 +2159,7 @@
         controllerAs: 'tickets',
         templateUrl: 'app/tickets/tickets.html',
         resolve: {
-          currentAuth: ['auth', function(auth) {
-            return auth.$requireAuth();
-          }]
+          currentAuth: getCurrentAuth
         }
       })
       .state('tickets.add', {
@@ -1465,11 +2172,15 @@
           }
         },
         resolve: {
-          currentAuth: ['auth', function(auth) {
-            return auth.$requireAuth();
-          }]
+          currentAuth: getCurrentAuth
         }
       });
+  }
+
+  getCurrentAuth.$inject = ['auth'];
+
+  function getCurrentAuth(auth) {
+    return auth.check(true);
   }
 })();
 
