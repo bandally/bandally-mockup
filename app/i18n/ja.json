@@ -3,6 +3,7 @@
     "menu": {
       "locale": "言語",
       "dashboard": "ダッシュボード",
+      "spot": "スポット",
       "notification": "通知",
       "account": "アカウント",
       "login": "ログイン",

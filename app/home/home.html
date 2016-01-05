@@ -1,41 +1,59 @@
 <section>
-  <h2>予定調整</h2>
-  <div ng-repeat="room in home.rooms">
-    <a ui-sref="room({ roomId: room.$id })">
-      <img ng-src="{{ room.you.imageUrl }}" alt="">
-      {{ room.you.fullName }}
-    </a>
+  <div class="well">
+    <h2>プロフィール</h2>
+    <p><a class="btn btn-primary" ui-sref="hosts({ userId: home.me.name })">自分のプロフィールを見る</a></p>
   </div>
-  <h2>お気に入り</h2>
-  <div class="favorite-users">
-    <div class="favorite-user" ng-repeat="user in home.favoriteUsers">
-      <a ui-sref="hosts({ userId: user.name })">
-        <img ng-src="{{ user.imageUrl }}" alt="">
-        {{ user.fullName }}
+  <div class="well">
+    <h2>予定調整</h2>
+    <div ng-repeat="room in home.rooms">
+      <a ui-sref="room({ roomId: room.$id })">
+        <img ng-src="{{ room.you.imageUrl }}" alt="">
+        {{ room.you.fullName }}
       </a>
     </div>
   </div>
-  <div class="favorited-count">お気に入りされている数: {{ home.me.favoritedCount }}</div>
-  <h2>写真</h2>
-  <div class="photos">
-    <div class="photo" ng-repeat="photo in home.photos">
-      <span class="photo-image" ng-style="{ backgroundImage: 'url(' + photo.image + ')' }"></span>
-      <button class="btn btn-default btn-block" ng-click="home.showModal(photo.$id)" ng-if="!photo.isSpot">
-        <i class="fa fa-map-marker"></i>
-        スポット登録
-      </button>
-      <button class="btn btn-default btn-block" ng-click="home.removeSpot(photo.$id)" ng-if="photo.isSpot">
-        <i class="fa fa-map-marker"></i>
-        スポット登録解除
-      </button>
-      <button class="btn btn-default btn-block" ng-click="home.removePhoto(photo.$id)">
-        <i class="fa fa-times"></i>
-        削除
-      </button>
+  <div class="well">
+    <h2>お気に入り</h2>
+    <div class="row">
+      <div class="col-sm-6">
+        <h3>お気に入りリスト</h3>
+        <div class="favorite-users">
+          <div class="favorite-user" ng-repeat="user in home.favoriteUsers">
+            <a ui-sref="hosts({ userId: user.name })">
+              <img ng-src="{{ user.imageUrl }}" alt="">
+              {{ user.fullName }}
+            </a>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6">
+        <h3>あなたをお気に入りに入れているユーザー</h3>
+        <div class="favorited-count">{{ home.me.favoritedCount }} ユーザー</div>
+      </div>
     </div>
-    <div class="photo photo-add">
-      <h3 class="text-muted">追加</h3>
-      <file-upload></file-upload>
+  </div>
+  <div class="well">
+    <h2>写真</h2>
+    <div class="photos">
+      <div class="photo" ng-repeat="photo in home.photos">
+        <span class="photo-image" ng-style="{ backgroundImage: 'url(' + photo.data + ')' }"></span>
+        <button class="btn btn-default btn-block" ng-click="home.showModal(photo.$id)" ng-if="!photo.isSpot">
+          <i class="fa fa-map-marker"></i>
+          スポット登録
+        </button>
+        <button class="btn btn-default btn-block" ng-click="home.removeSpot(photo.$id)" ng-if="photo.isSpot">
+          <i class="fa fa-map-marker"></i>
+          スポット登録解除
+        </button>
+        <button class="btn btn-default btn-block" ng-click="home.removePhoto(photo.$id)">
+          <i class="fa fa-times"></i>
+          削除
+        </button>
+      </div>
+      <div class="photo photo-add">
+        <h3 class="text-muted">追加</h3>
+        <file-upload></file-upload>
+      </div>
     </div>
   </div>
 </section>

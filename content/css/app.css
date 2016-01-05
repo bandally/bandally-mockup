@@ -11,11 +11,6 @@
           transform: translate(-50%, -50%);
 }
 
-.loading {
-  padding: 20px;
-  text-align: center;
-}
-
 html {
   height: 100%;
 }
@@ -166,6 +161,43 @@ img {
   width: 120px;
 }
 
+.map-canvas.loading {
+  opacity: .5;
+  position: relative;
+}
+
+.map-canvas.loading:before {
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 8px;
+  content: '';
+  display: block;
+  height: 160px;
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  -webkit-transform: translate(-50%, -50%);
+      -ms-transform: translate(-50%, -50%);
+          transform: translate(-50%, -50%);
+  width: 160px;
+  z-index: 9998;
+}
+
+.map-canvas.loading:after {
+  -webkit-animation: fa-spin 2s infinite linear;
+          animation: fa-spin 2s infinite linear;
+  color: #fff;
+  content: '\f110';
+  display: block;
+  font-family: fontAwesome;
+  font-size: 6rem;
+  left: 50%;
+  line-height: 1;
+  margin: -3rem 0 0 -3rem;
+  position: absolute;
+  top: 50%;
+  z-index: 9999;
+}
+
 .list-with-photo ul {
   list-style-type: none;
   overflow: hidden;
@@ -230,6 +262,11 @@ img {
   background: transparent;
   border: 8px dashed #ccc;
   box-shadow: none;
+}
+
+.chat .loading {
+  padding: 20px;
+  text-align: center;
 }
 
 .chat .message {

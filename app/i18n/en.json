@@ -3,6 +3,7 @@
     "menu": {
       "locale": "Locale",
       "dashboard": "Dashboard",
+      "spot": "Spot",
       "notification": "Notifications",
       "account": "Account",
       "login": "Sign in",

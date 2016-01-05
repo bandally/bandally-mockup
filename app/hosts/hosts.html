@@ -33,19 +33,19 @@
       {{ hosts.user.residence }}
     </p>
     <p ng-repeat="message in hosts.userMessages">{{ message }}</p>
-    <div class="row">
+    <div class="row" ng-if="!hosts.isMe">
       <div class="col-sm-6">
-        <button class="btn btn-default btn-block" ng-if="!hosts.isFavorited || hosts.isMe" ng-click="hosts.addFavorite()" ng-disabled="hosts.isMe">
+        <button class="btn btn-default btn-block" ng-if="!hosts.isFavorited" ng-click="hosts.addFavorite()">
           <i class="fa fa-heart"></i>
           Add favorite
         </button>
-        <button class="btn btn-default btn-block" ng-if="hosts.isFavorited && !hosts.isMe" ng-click="hosts.removeFavorite()">
+        <button class="btn btn-default btn-block" ng-if="hosts.isFavorited" ng-click="hosts.removeFavorite()">
           <i class="fa fa-heart"></i>
           Remove favorite
         </button>
       </div>
       <div class="col-sm-6">
-        <button class="btn btn-primary btn-block" ng-click="hosts.showModal()" ng-disabled="hosts.isMe">
+        <button class="btn btn-primary btn-block" ng-click="hosts.showModal()">
           <i class="fa fa-envelope"></i>
           Get contact
         </button>

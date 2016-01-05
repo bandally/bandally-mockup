@@ -536,9 +536,9 @@
     };
   }
 
-  FileUploadController.$inject = ['$rootScope', 'photo', 'toastr', 'Upload', 'user'];
+  FileUploadController.$inject = ['$rootScope', 'data', 'Photo', 'toastr', 'Upload', 'user'];
 
-  function FileUploadController($rootScope, photo, toastr, Upload, user) {
+  function FileUploadController($rootScope, data, Photo, toastr, Upload, user) {
 
     var _photoData = {};
 
@@ -559,16 +559,11 @@
 
     function uplodeEncodedImage(base64Image) {
       _photoData = {
-        image: base64Image,
-        userId: $rootScope.statuses.userId
+        data: base64Image,
       };
-      return photo.add(_photoData).then(updateUserData);
-    }
-
-    function updateUserData(ref) {
-      vm.picFile = null;
-      user.addPhoto(ref.key()).then(function (ref) {
-        toastr.success('Upload Success!');
+      return new Photo(data.me.$id).$add(_photoData).then(function (ref) {
+        vm.picFile = null;
+        return toastr.success('Upload Success!');
       });
     }
   }
@@ -685,6 +680,30 @@
         }
       };
     }
+  }
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app.core')
+    .factory('PhotoFactory', PhotoFactory)
+    .factory('Photo', Photo);
+
+  PhotoFactory.$inject = ['$firebaseArray', '$q', 'config', 'Transaction'];
+
+  function PhotoFactory($firebaseArray, $q, config, Transaction) {
+
+    return $firebaseArray;
+  }
+
+  Photo.$inject = ['config', 'PhotoFactory'];
+
+  function Photo(config, PhotoFactory) {
+    var ref = new Firebase(config.serverUrl + 'photos');
+    return function (userId) {
+      return new PhotoFactory(ref.child(userId));
+    };
   }
 })();
 
@@ -880,9 +899,9 @@
 
     var ref = new Firebase(config.serverUrl);
 
-    return new Transaction();
+    return new TransactionFactory();
 
-    function Transaction() {
+    function TransactionFactory() {
       return {
         save: save
       };
@@ -940,44 +959,67 @@
 (function () {
   'use strict';
 
-  angular.module('app.core').factory('UserFactory', UserFactory);
+  angular.module('app.core')
+    .factory('UserFactory', UserFactory)
+    .factory('User', User);
 
-  UserFactory.$inject = ['$firebaseObject', 'config'];
+  UserFactory.$inject = ['$firebaseObject', '$q', 'config', 'Transaction'];
 
-  function UserFactory($firebaseObject, config) {
+  function UserFactory($firebaseObject, $q, config, Transaction) {
+
+    var _user;
 
     return $firebaseObject.$extend({
       $$updated: function (snapshot) {
         var changed = $firebaseObject.prototype.$$updated.apply(this, arguments);
-        var self = this;
-        getPhotos(self);
-        getLanguages(self);
+        _user = this;
+        getPhotos();
+        getLanguages();
         return changed;
-      }
+      },
+      removePhoto: removePhoto
     });
 
-    function getPhotos(user) {
+    function getPhotos() {
       var photosRef = new Firebase(config.serverUrl + 'photos');
       var photosCollection = [];
-      angular.forEach(user.photos, function (bool, photoId) {
+      angular.forEach(_user.photos, function (bool, photoId) {
         var photoRef = photosRef.child(photoId);
         photosCollection.push($firebaseObject(photoRef));
       });
-      user.photosCollection = photosCollection;
+      _user.photosCollection = photosCollection;
     }
 
-    function getLanguages(user) {
+    function getLanguages() {
       var languagesRef = new Firebase(config.serverUrl + 'languages');
       var languagesCollection = [];
-      angular.forEach(user.languages, function (bool, languageId) {
+      angular.forEach(_user.languages, function (bool, languageId) {
         var languageRef = languagesRef.child(languageId);
         languagesCollection.push($firebaseObject(languageRef));
       });
-      user.languagesCollection = languagesCollection;
+      _user.languagesCollection = languagesCollection;
+    }
+
+    function removePhoto(photoId) {
+      var deferred = $q.defer();
+      var updateData = {};
+      var updateKey1 = 'users/' + _user.$id + '/photos/' + photoId;
+      var updateKey2 = 'photos/' + photoId;
+      var updateKey3 = 'spots/' + photoId;
+      updateData[updateKey1] = null;
+      updateData[updateKey2] = null;
+      updateData[updateKey3] = null;
+      Transaction.save(updateData).then(
+        function (ref) {
+          return deferred.resolve(ref);
+        },
+        function (error) {
+          return deferred.reject(error);
+        }
+      );
+      return deferred.promise;
     }
   }
-
-  angular.module('app.core').factory('User', User);
 
   User.$inject = ['config', 'UserFactory'];
 
@@ -998,13 +1040,11 @@
 
   function user($firebaseArray, $firebaseObject, $q, $rootScope, config, userId) {
 
-    var _me = {};
     return new User();
 
     function User() {
       var ref = new Firebase(config.serverUrl + 'users');
       return {
-        me: _me,
         setMe: function (id) {
           var userRef = ref.child(id);
           return $firebaseObject(userRef).$loaded().then(function (me) {
@@ -1122,34 +1162,27 @@
 
   angular.module('app').controller('HomeController', HomeController);
 
-  HomeController.$inject = ['$rootScope', '$state', '$uibModal', 'photo', 'room', 'spot', 'toastr', 'user'];
+  HomeController.$inject = ['$rootScope', '$state', '$uibModal', 'data', 'Photo', 'room', 'spot', 'toastr', 'User'];
 
-  function HomeController($rootScope, $state, $uibModal, photo, room, spot, toastr, user) {
+  function HomeController($rootScope, $state, $uibModal, data, Photo, room, spot, toastr, User) {
 
-    var userId = $rootScope.statuses.userId;
+    var userId = data.me.$id;
 
     var vm = this;
-    vm.me = {};
+    vm.me = data.me;
     vm.rooms = [];
     vm.favoriteUsers = [];
-    vm.photos = [];
+    vm.photos = new Photo(userId);
     vm.removePhoto = removePhoto;
     vm.showModal = showModal;
 
     activate();
 
     function activate() {
-      getMe();
-    }
-
-    function getMe() {
-      user.get(userId).$loaded().then(function (me) {
-        vm.me = me;
-        checkUserData();
-        getRoom();
-        getFavorites();
-        getPhotos();
-      });
+      checkUserData();
+      getRoom();
+      getFavorites();
+      getPhotos();
     }
 
     function checkUserData() {
@@ -1166,9 +1199,7 @@
           angular.forEach(room, function (value, key) {
             if (key !== 'guest' && key !== 'host') return;
             if (value === userId) return;
-            user.get(value).$loaded().then(function (you) {
-              room.you = you;
-            });
+            room.you = new User(value);
           });
         });
       });
@@ -1176,17 +1207,15 @@
 
     function getFavorites() {
       angular.forEach(vm.me.favorites, function (bool, userId) {
-        user.get(userId).$loaded().then(function (user) {
-          vm.favoriteUsers.push(user);
-        });
+        vm.favoriteUsers.push(new User(userId));
       });
     }
 
     function getPhotos() {
-      angular.forEach(vm.me.photos, function (bool, photoId) {
-        photo.get(photoId).$loaded().then(function (photo) {
-          vm.photos.push(photo);
-          spot.get(photoId).$loaded().then(function (spot) {
+      vm.photos.$loaded(function (photos) {
+        angular.forEach(photos, function (photo) {
+          var spotKey = [userId, photo.$id].join('::');
+          spot.get(spotKey).$loaded().then(function (spot) {
             photo.isSpot = !spot.hasOwnProperty('$value');
           });
         });
@@ -1194,11 +1223,14 @@
     }
 
     function removePhoto(photoId) {
-      user.removePhoto(photoId).then(function (ref) {
-        photo.remove(ref.key()).then(function (ref) {
-          toastr.success('Photo removed!');
-        });
-      });
+      data.me.removePhoto(photoId).then(
+        function (ref) {
+          return toastr.success('Photo removed!');
+        },
+        function (error) {
+          return toastr.error('Photo remove failed!');
+        }
+      );
     }
 
     function showModal(photoId) {
@@ -1217,7 +1249,7 @@
           return toastr.success('Spot registeration completed!');
         },
         function (reason) {
-          if (reason === 'cancel') return;
+          if (reason === 'cancel' || reason === 'backdrop click') return;
           return toastr.error('Spot registeration failed!', 'Error');
         }
       );
@@ -1257,9 +1289,9 @@
 
   angular.module('app').controller('RegisterSpotController', RegisterSpotController);
 
-  RegisterSpotController.$inject = ['$scope', '$uibModalInstance', 'photoId', 'spot'];
+  RegisterSpotController.$inject = ['$scope', '$uibModalInstance', 'data', 'photoId', 'spot'];
 
-  function RegisterSpotController($scope, $uibModalInstance, photoId, spot) {
+  function RegisterSpotController($scope, $uibModalInstance, data, photoId, spot) {
 
     var _spot = {};
 
@@ -1323,7 +1355,8 @@
     }
 
     function addSpot() {
-      spot.add(photoId, _.values(_spot)).then(
+      var spotKey = [data.me.$id, photoId].join('::');
+      spot.add(spotKey, _.values(_spot)).then(
         function () {
           $uibModalInstance.close();
         },
@@ -1466,14 +1499,14 @@
 
   angular.module('app').controller('HostsController', HostsController);
 
-  HostsController.$inject = ['$interval', '$q', '$rootScope', '$stateParams', '$uibModal', 'currentAuth', 'language', 'photo', 'toastr', 'user'];
+  HostsController.$inject = ['$interval', '$q', '$rootScope', '$stateParams', '$uibModal', 'currentAuth', 'data', 'language', 'photo', 'toastr', 'user'];
 
-  function HostsController($interval, $q, $rootScope, $stateParams, $uibModal, currentAuth, language, photo, toastr, user) {
+  function HostsController($interval, $q, $rootScope, $stateParams, $uibModal, currentAuth, data, language, photo, toastr, user) {
 
     var _userName = $stateParams.userId;
 
     var vm = this;
-    vm.isMe = $rootScope.statuses.userName === _userName;
+    vm.isMe = data.me.name === _userName;
     vm.isFavorited = false;
     vm.me = currentAuth;
     vm.userLanguages = [];
@@ -1653,11 +1686,12 @@
     };
   }
 
-  HeaderController.$inject = ['$scope', '$state', '$translate', 'auth', 'data', 'User'];
+  HeaderController.$inject = ['$rootScope', '$scope', '$state', '$translate', 'auth', 'data', 'User'];
 
-  function HeaderController($scope, $state, $translate, auth, data, User) {
+  function HeaderController($rootScope, $scope, $state, $translate, auth, data, User) {
 
     var vm = this;
+    vm.rootScope = $rootScope;
     vm.data = data;
     vm.notifications = [];
     vm.changeLocale = changeLocale;
@@ -1890,15 +1924,16 @@
 
   angular.module('app.spots').controller('SpotsController', SpotsController);
 
-  SpotsController.$inject = ['$rootScope', '$scope', 'currentAuth', 'language', 'photo', 'spot', 'uiGmapGoogleMapApi', 'user'];
+  SpotsController.$inject = ['$q', '$rootScope', '$scope', 'currentAuth', 'language', 'photo', 'spot', 'uiGmapGoogleMapApi', 'user'];
 
-  function SpotsController($rootScope, $scope, currentAuth, language, photo, spot, uiGmapGoogleMapApi, user) {
+  function SpotsController($q, $rootScope, $scope, currentAuth, language, photo, spot, uiGmapGoogleMapApi, user) {
 
     var _bounds = {};
-    var _dragging = false;
+    var _isDragging = false;
 
     var vm = this;
     vm.me = currentAuth;
+    vm.isLoading = false;
     vm.map = {};
     vm.control = {};
     vm.events = {};
@@ -1944,6 +1979,24 @@
       angular.element(document).find('.angular-google-map-container').css({ height: contentHeight + 'px' });
     }
 
+    function boundsChanged(map) {
+      if (_isDragging) return;
+      if (vm.isLoading) return;
+      getBounds(map);
+      getSpots();
+    }
+
+    function drag() {
+      _isDragging = true;
+    }
+
+    function dragend(map) {
+      _isDragging = false;
+      if (vm.isLoading) return;
+      getBounds(map);
+      getSpots();
+    }
+
     function getBounds(map) {
       _bounds = {
         ne: {
@@ -1957,46 +2010,27 @@
       };
     }
 
-    function boundsChanged(map) {
-      if (_dragging) return;
-      getBounds(map);
-      vm.markers = [];
-      getSpots();
-    }
-
-    function drag() {
-      _dragging = true;
-    }
-
-    function dragend(map) {
-      _dragging = false;
-      if (_dragging) return;
-      getBounds(map);
-      vm.markers = [];
-      getSpots();
-    }
-
     function setSearchbox() {
       vm.searchbox = {
         template: 'app/spots/searchbox.html',
         events: {
-          places_changed: function (searchBox) {
-            var place = searchBox.getPlaces();
-            if (!place || place === 'undefined' || place.length === 0) {
-              console.log('no place data :(');
-              return;
-            }
-            vm.map.center = {
-              latitude: place[0].geometry.location.lat(),
-              longitude: place[0].geometry.location.lng()
-            };
-          }
+          places_changed: placesChanged
         },
         position: 'top-right'
       };
     }
 
+    function placesChanged(searchBox) {
+      var place = searchBox.getPlaces();
+      if (!place || place === 'undefined' || place.length === 0) return;
+      vm.map.center = {
+        latitude: place[0].geometry.location.lat(),
+        longitude: place[0].geometry.location.lng()
+      };
+    }
+
     function getSpots() {
+      vm.isLoading = true;
       vm.markers = [];
       var locations = [];
       angular.forEach(_bounds, function (points) {
@@ -2007,26 +2041,32 @@
         locations.push(location);
       });
       var distance = spot.distance(locations);
-      var radius = distance / 2;
-      spot.query(_.values(vm.map.center), radius).then(getSpotsSuccess);
-      // spot.getAll().$loaded().then(getSpotsSuccess);
+      var radius = distance / 3;
+      spot.query(_.values(vm.map.center), radius).then(getSpotsSuccess, getSpotFailed);
     }
 
     function getSpotsSuccess(spots) {
-      angular.forEach(spots, setSpotData);
+      var promises = [];
+      angular.forEach(spots, function (spot, index) {
+        promises.push((function (spot, index) {
+          setSpotData(spot, index);
+        })(spot, index));
+      });
+      $q.all(promises).then(function () {
+        vm.isLoading = false;
+      });
+    }
+
+    function getSpotFailed(error) {
+      vm.isLoading = false;
     }
 
     function setSpotData(spot, index) {
-      // var isCurrentLatitude = spot.geoCode.latitude < _bounds.ne.lat && spot.geoCode.latitude > _bounds.sw.lat;
-      // var isCurrentLongitude = spot.geoCode.longitude < _bounds.ne.lng && spot.geoCode.longitude > _bounds.sw.lng;
-      // if (!isCurrentLatitude || !isCurrentLongitude) {
-      //   return;
-      // }
+      var deferred = $q.defer();
       var newSpot = {};
-      // newSpot.id = spot.$id;
-      newSpot.id = spot.id;
-      // newSpot.latitude = spot.geoCode.latitude;
-      // newSpot.longitude = spot.geoCode.longitude;
+      var ids = spot.id.split('::');
+      var userId = ids[0];
+      newSpot.id = ids[1];
       newSpot.latitude = spot.location[0];
       newSpot.longitude = spot.location[1];
       newSpot.show = true;
@@ -2039,11 +2079,11 @@
         }
       };
       newSpot.photos = [];
-      // photo.get(spot.photoId).$loaded().then(function (photo) {
-      photo.get(spot.id).$loaded().then(function (photo) {
+      var photoKey = userId + '/' + newSpot.id;
+      photo.get(photoKey).$loaded().then(function (photo) {
         newSpot.photos.push(photo);
         photo.user = {};
-        user.get(photo.userId).$loaded().then(function (user) {
+        return user.get(userId).$loaded().then(function (user) {
           photo.user = user;
           newSpot.userId = user.name;
           var keepGoing = true;
@@ -2054,8 +2094,10 @@
             vm.markers.push(newSpot);
             keepGoing = false;
           });
+          return deferred.resolve();
         });
       });
+      return deferred.promise;
     }
 
     function getLanguages() {
