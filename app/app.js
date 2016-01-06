@@ -1565,7 +1565,20 @@
     }
 
     function dontAccept() {
-
+      var saveData = {};
+      var saveKey1 = 'users/' + vm.contact.host + '/notifications/' + notificationId;
+      var saveKey2 = 'contacts/' + id;
+      saveData[saveKey1] = null;
+      saveData[saveKey2] = null;
+      Transaction.save(saveData).then(
+        function (ref) {
+          toastr.success('拒否しました');
+          return $state.go('home');
+        },
+        function (error) {
+          return toastr.error('拒否できませんでした');
+        }
+      );
     }
   }
 })();
