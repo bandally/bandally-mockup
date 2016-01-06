@@ -2154,6 +2154,7 @@
             longitude: place[0].geometry.viewport.getSouthWest().lng()
           }
         };
+        return;
       }
       vm.map.center = {
         latitude: place[0].geometry.location.lat(),
