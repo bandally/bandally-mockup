@@ -1555,7 +1555,7 @@
         function (ref) {
           toastr.success('承認しました');
           return $state.go('room', {
-            roomId: roomId
+            roomId: newRoomId
           });
         },
         function (error) {
