@@ -1063,7 +1063,6 @@
     return $firebaseObject.$extend({
       $$updated: function (snapshot) {
         var changed = $firebaseObject.prototype.$$updated.apply(this, arguments);
-        // getPhotos(this);
         adjustMessages(this);
         return changed;
       },
@@ -1136,11 +1135,6 @@
         return deferred.promise;
       }
     });
-
-    function getPhotos(user) {
-      var photosRef = new Firebase(config.serverUrl + 'photos');
-      user.photos = $firebaseArray(photosRef.child(user.$id));
-    }
 
     function adjustMessages(user) {
       var userMessagesRef = new Firebase(config.serverUrl + 'users/' + user.$id + '/messages');
@@ -1447,9 +1441,9 @@
 
   angular.module('app').controller('RegisterSpotController', RegisterSpotController);
 
-  RegisterSpotController.$inject = ['$scope', '$uibModalInstance', 'data', 'photoId', 'spot'];
+  RegisterSpotController.$inject = ['$scope', '$uibModalInstance', 'data', 'photoId', 'spot', 'uiGmapIsReady'];
 
-  function RegisterSpotController($scope, $uibModalInstance, data, photoId, spot) {
+  function RegisterSpotController($scope, $uibModalInstance, data, photoId, spot, uiGmapIsReady) {
 
     var _spot = {};
 
@@ -1464,6 +1458,9 @@
       initialize();
       setMap();
       setMarker();
+      uiGmapIsReady.promise(1).then(function (instances) {
+        vm.map.control.refresh(_spot);
+      });
     }
 
     function initialize() {
@@ -1479,7 +1476,8 @@
         zoom: 1,
         events: {
           click: setMarkerByMapClicked
-        }
+        },
+        control: {}
       };
     }
 
