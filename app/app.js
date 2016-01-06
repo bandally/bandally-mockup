@@ -1778,7 +1778,7 @@
         }
       })
       .state('accept', {
-        url: '/accept/:contactId:notificationId',
+        url: '/accept/:contactId::notificationId',
         controller: 'AcceptController',
         controllerAs: 'accept',
         templateUrl: 'app/hosts/accept.html',

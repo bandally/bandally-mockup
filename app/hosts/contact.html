@@ -17,7 +17,9 @@
             <p class="input-group">
             <input id="inputDate" type="date" class="form-control" uib-datepicker-popup ng-model="contact.date" is-open="contact.status.opened" min-date="minDate" max-date="maxDate" datepicker-options="dateOptions" date-disabled="disabled(date, mode)" ng-required="true" close-text="Close" />
             <span class="input-group-btn">
-              <button type="button" class="btn btn-default" ng-click="contact.openCalendar($event)"><i class="glyphicon glyphicon-calendar"></i></button>
+              <button type="button" class="btn btn-default" ng-click="contact.openCalendar($event)">
+                <i class="fa fa-calendar"></i>
+              </button>
             </span>
             </p>
           </div>
