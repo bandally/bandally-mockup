@@ -373,20 +373,26 @@
   function BackgroundController($interval, $scope) {
 
     var vm = this;
+    vm.images = [];
     vm.activeBg = 0;
 
     activate();
 
     function activate() {
-      $scope.$watch('background.backgroundImages', function (value) {
+      var unwatch = $scope.$watch('background.backgroundImages', function (value) {
         if (_.isUndefined(value)) return;
-        startBgCarousel();
+        unwatch();
+        return value.$loaded(function (images) {
+          if (!images.length) return;
+          vm.images = images;
+          startBgCarousel();
+        });
       });
     }
 
     function startBgCarousel() {
       $interval(function () {
-        if (vm.activeBg === vm.backgroundImages.length - 1) {
+        if (vm.activeBg === vm.images.length - 1) {
           vm.activeBg = 0;
           return;
         }
@@ -1057,9 +1063,14 @@
     return $firebaseObject.$extend({
       $$updated: function (snapshot) {
         var changed = $firebaseObject.prototype.$$updated.apply(this, arguments);
-        getPhotos(this);
+        // getPhotos(this);
         adjustMessages(this);
         return changed;
+      },
+      getPhotos: function () {
+        var user = this;
+        var photosRef = new Firebase(config.serverUrl + 'photos');
+        user.photos = $firebaseArray(photosRef.child(user.$id));
       },
       getRooms: function () {
         var user = this;
@@ -1278,9 +1289,9 @@
 
   angular.module('app.core').factory('utility', utility);
 
-  utility.$inject = ['$firebaseObject', 'config', 'User'];
+  utility.$inject = ['$firebaseObject', '$q', 'config', 'User'];
 
-  function utility($firebaseObject, config, User) {
+  function utility($firebaseObject, $q, config, User) {
 
     var ref = new Firebase(config.serverUrl);
 
@@ -1289,10 +1300,12 @@
     };
 
     function getUserByName(userName) {
+      var deferred = $q.defer();
       var userIdRef = ref.child('userIds/' + userName);
-      return $firebaseObject(userIdRef).$loaded(function (userId) {
-        return new User(userId.$value);
+      $firebaseObject(userIdRef).$loaded(function (userId) {
+        return deferred.resolve(new User(userId.$value));
       });
+      return deferred.promise;
     }
   }
 })();
@@ -1345,6 +1358,7 @@
     }
 
     function checkPhotos() {
+      vm.me.getPhotos();
       vm.me.photos.$loaded(function (photos) {
         angular.forEach(vm.me.photos, function (photo) {
           var spotKey = [userId, photo.$id].join('::');
@@ -1666,8 +1680,6 @@
     vm.isMe = data.me.name === _userName;
     vm.isFavorited = false;
     vm.user = {};
-    vm.userLanguages = [];
-    vm.userPhotos = [];
     vm.userMessages = [];
     vm.addFavorite = addFavorite;
     vm.removeFavorite = removeFavorite;
@@ -1678,6 +1690,7 @@
     function activate() {
       getUserData().then(function () {
         checkFavorited();
+        vm.user.getPhotos();
         vm.user.getLanguages();
         // vm.user.age = _.isUndefined(user.birth) ? null : Math.floor(moment(new Date()).diff(moment(user.birth), 'years', true));
       });
@@ -1687,44 +1700,6 @@
       var deferred = $q.defer();
       utility.getUserByName(_userName).then(function (user) {
         vm.user = user;
-        return deferred.resolve();
-      });
-      return deferred.promise;
-    }
-
-    function getUserLanguages() {
-      var deferred = $q.defer();
-      var promises = [];
-      angular.forEach(vm.user.languages, function (value, key) {
-        promises.push((function () {
-          var deferred = $q.defer();
-          language.get(key).$loaded().then(function (language) {
-            vm.userLanguages.push(language.$value);
-            return deferred.resolve();
-          });
-          return deferred.promise;
-        })());
-      });
-      $q.all(promises).then(function () {
-        return deferred.resolve();
-      });
-      return deferred.promise;
-    }
-
-    function getUserPhotos() {
-      var deferred = $q.defer();
-      var promises = [];
-      angular.forEach(vm.user.photos, function (value, key) {
-        promises.push((function () {
-          var deferred = $q.defer();
-          photo.get(key).$loaded().then(function (photo) {
-            vm.userPhotos.push(photo);
-            return deferred.resolve();
-          });
-          return deferred.promise;
-        })());
-      });
-      $q.all(promises).then(function () {
         return deferred.resolve();
       });
       return deferred.promise;
