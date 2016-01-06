@@ -355,6 +355,53 @@
 (function () {
   'use strict';
 
+  angular.module('app').directive('background', background);
+
+  background.$inject = [];
+
+  function background() {
+    return {
+      templateUrl: 'app/core/background.html',
+      scope: {
+        backgroundImages: '='
+      },
+      controller: BackgroundController,
+      controllerAs: 'background',
+      bindToController: true
+    };
+  }
+
+  BackgroundController.$inject = ['$interval', '$scope'];
+
+  function BackgroundController($interval, $scope) {
+
+    var vm = this;
+    vm.activeBg = 0;
+
+    activate();
+
+    function activate() {
+      $scope.$watch('background.backgroundImages', function (value) {
+        if (_.isUndefined(value)) return;
+        startBgCarousel();
+      });
+    }
+
+    function startBgCarousel() {
+      $interval(function () {
+        if (vm.activeBg === vm.backgroundImages.length - 1) {
+          vm.activeBg = 0;
+          return;
+        }
+        return vm.activeBg++;
+      }, 6000);
+    }
+  }
+})();
+
+(function () {
+  'use strict';
+
   angular.module('app.core').factory('cache', cache);
 
   cache.$inject = ['$cookies'];
@@ -487,6 +534,7 @@
 
     // 未ログインのままログインが必要なページに遷移した場合の処理
     $rootScope.$on('$stateChangeError', function (event, toState, toParams, fromState, fromParams, error) {
+      console.log(error);
       if (error === 'AUTH_REQUIRED') {
         toastr.warning('You require sign in!', 'Warning');
         return $state.go('spots');
@@ -768,6 +816,58 @@
 (function () {
   'use strict';
 
+  angular.module('app.core')
+    .factory('RoomFactory', RoomFactory)
+    .factory('Room', Room);
+
+  RoomFactory.$inject = ['$firebaseArray', '$firebaseObject', '$q', 'config', 'Transaction'];
+
+  function RoomFactory($firebaseArray, $firebaseObject, $q, config, Transaction) {
+
+    var _room;
+
+    return $firebaseObject.$extend({
+      $$updated: function (snapshot) {
+        var changed = $firebaseObject.prototype.$$updated.apply(this, arguments);
+        _room = this;
+        return changed;
+      }
+    });
+
+    function removePhoto(photoId) {
+      var deferred = $q.defer();
+      var updateData = {};
+      var updateKey1 = 'users/' + _user.$id + '/photos/' + photoId;
+      var updateKey2 = 'photos/' + photoId;
+      var updateKey3 = 'spots/' + photoId;
+      updateData[updateKey1] = null;
+      updateData[updateKey2] = null;
+      updateData[updateKey3] = null;
+      Transaction.save(updateData).then(
+        function (ref) {
+          return deferred.resolve(ref);
+        },
+        function (error) {
+          return deferred.reject(error);
+        }
+      );
+      return deferred.promise;
+    }
+  }
+
+  Room.$inject = ['config', 'RoomFactory'];
+
+  function Room(config, RoomFactory) {
+    var ref = new Firebase(config.serverUrl + 'rooms');
+    return function (roomId) {
+      return new RoomFactory(ref.child(roomId));
+    };
+  }
+})();
+
+(function () {
+  'use strict';
+
   angular.module('app.core').factory('room', room);
 
   room.$inject = ['$firebaseArray', '$firebaseObject', 'config'];
@@ -963,9 +1063,9 @@
     .factory('UserFactory', UserFactory)
     .factory('User', User);
 
-  UserFactory.$inject = ['$firebaseObject', '$q', 'config', 'Transaction'];
+  UserFactory.$inject = ['$firebaseArray', '$firebaseObject', '$q', 'config', 'Transaction'];
 
-  function UserFactory($firebaseObject, $q, config, Transaction) {
+  function UserFactory($firebaseArray, $firebaseObject, $q, config, Transaction) {
 
     var _user;
 
@@ -974,30 +1074,52 @@
         var changed = $firebaseObject.prototype.$$updated.apply(this, arguments);
         _user = this;
         getPhotos();
-        getLanguages();
+        adjustMessages();
         return changed;
       },
+      getRooms: getRooms,
+      getFavorites: getFavorites,
+      getLanguages: getLanguages,
       removePhoto: removePhoto
     });
 
     function getPhotos() {
       var photosRef = new Firebase(config.serverUrl + 'photos');
-      var photosCollection = [];
-      angular.forEach(_user.photos, function (bool, photoId) {
-        var photoRef = photosRef.child(photoId);
-        photosCollection.push($firebaseObject(photoRef));
+      _user.photos = $firebaseArray(photosRef.child(_user.$id));
+    }
+
+    function adjustMessages() {
+      var userMessagesRef = new Firebase(config.serverUrl + 'users/' + _user.$id + '/messages');
+      _user.messages = $firebaseArray(userMessagesRef);
+    }
+
+    function getRooms() {
+      if (!_.has(_user, 'rooms')) return;
+      var roomsRef = new Firebase(config.serverUrl + 'rooms');
+      var rooms = [];
+      angular.forEach(_user.rooms, function (bool, roomId) {
+        rooms.push($firebaseObject(roomsRef.child(roomId)));
       });
-      _user.photosCollection = photosCollection;
+      _user.rooms = rooms;
+    }
+
+    function getFavorites() {
+      if (!_.has(_user, 'favorites')) return;
+      var favoritesRef = new Firebase(config.serverUrl + 'users');
+      var favorites = [];
+      angular.forEach(_user.favorites, function (bool, favoriteUserId) {
+        favorites.push($firebaseObject(favoritesRef.child(favoriteUserId)));
+      });
+      _user.favorites = favorites;
     }
 
     function getLanguages() {
       var languagesRef = new Firebase(config.serverUrl + 'languages');
-      var languagesCollection = [];
-      angular.forEach(_user.languages, function (bool, languageId) {
-        var languageRef = languagesRef.child(languageId);
-        languagesCollection.push($firebaseObject(languageRef));
+      $firebaseArray(languagesRef).$loaded(function (languages) {
+        _user.languages = _.filter(languages, function (language) {
+          return _.has(_user.languages, language.$id);
+        });
       });
-      _user.languagesCollection = languagesCollection;
     }
 
     function removePhoto(photoId) {
@@ -1160,6 +1282,30 @@
 (function () {
   'use strict';
 
+  angular.module('app.core').factory('utility', utility);
+
+  utility.$inject = ['$firebaseObject', 'config', 'User'];
+
+  function utility($firebaseObject, config, User) {
+
+    var ref = new Firebase(config.serverUrl);
+
+    return {
+      getUserByName: getUserByName
+    };
+
+    function getUserByName(userName) {
+      var userIdRef = ref.child('userIds/' + userName);
+      return $firebaseObject(userIdRef).$loaded(function (userId) {
+        return new User(userId.$value);
+      });
+    }
+  }
+})();
+
+(function () {
+  'use strict';
+
   angular.module('app').controller('HomeController', HomeController);
 
   HomeController.$inject = ['$rootScope', '$state', '$uibModal', 'data', 'Photo', 'room', 'spot', 'toastr', 'User'];
@@ -1170,9 +1316,6 @@
 
     var vm = this;
     vm.me = data.me;
-    vm.rooms = [];
-    vm.favoriteUsers = [];
-    vm.photos = new Photo(userId);
     vm.removePhoto = removePhoto;
     vm.showModal = showModal;
 
@@ -1181,8 +1324,8 @@
     function activate() {
       checkUserData();
       getRoom();
-      getFavorites();
-      getPhotos();
+      checkPhotos();
+      vm.me.getFavorites();
     }
 
     function checkUserData() {
@@ -1193,9 +1336,9 @@
     }
 
     function getRoom() {
-      angular.forEach(vm.me.rooms, function (bool, roomId) {
-        room.get(roomId).$loaded().then(function (room) {
-          vm.rooms.push(room);
+      vm.me.getRooms();
+      angular.forEach(vm.me.rooms, function (room) {
+        room.$loaded(function (room) {
           angular.forEach(room, function (value, key) {
             if (key !== 'guest' && key !== 'host') return;
             if (value === userId) return;
@@ -1205,17 +1348,12 @@
       });
     }
 
-    function getFavorites() {
-      angular.forEach(vm.me.favorites, function (bool, userId) {
-        vm.favoriteUsers.push(new User(userId));
-      });
-    }
-
-    function getPhotos() {
-      vm.photos.$loaded(function (photos) {
-        angular.forEach(photos, function (photo) {
+    function checkPhotos() {
+      console.log(vm.me.photos);
+      vm.me.photos.$loaded(function (photos) {
+        angular.forEach(vm.me.photos, function (photo) {
           var spotKey = [userId, photo.$id].join('::');
-          spot.get(spotKey).$loaded().then(function (spot) {
+          spot.get(spotKey).$loaded(function (spot) {
             photo.isSpot = !spot.hasOwnProperty('$value');
           });
         });
@@ -1499,16 +1637,17 @@
 
   angular.module('app').controller('HostsController', HostsController);
 
-  HostsController.$inject = ['$interval', '$q', '$rootScope', '$stateParams', '$uibModal', 'currentAuth', 'data', 'language', 'photo', 'toastr', 'user'];
+  HostsController.$inject = ['$interval', '$q', '$rootScope', '$stateParams', '$uibModal', 'currentAuth', 'data', 'language', 'photo', 'Photo', 'toastr', 'user', 'utility'];
 
-  function HostsController($interval, $q, $rootScope, $stateParams, $uibModal, currentAuth, data, language, photo, toastr, user) {
+  function HostsController($interval, $q, $rootScope, $stateParams, $uibModal, currentAuth, data, language, photo, Photo, toastr, user, utility) {
 
     var _userName = $stateParams.userId;
 
     var vm = this;
     vm.isMe = data.me.name === _userName;
     vm.isFavorited = false;
-    vm.me = currentAuth;
+    // vm.me = currentAuth;
+    vm.user = {};
     vm.userLanguages = [];
     vm.userPhotos = [];
     vm.userMessages = [];
@@ -1521,16 +1660,14 @@
     function activate() {
       getUserData().then(function () {
         checkFavorited();
-        getUserLanguages();
-        getUserPhotos().then(startBgCarousel);
-        vm.userMessages = _.values(vm.user.messages);
+        vm.user.getLanguages();
         // vm.user.age = _.isUndefined(user.birth) ? null : Math.floor(moment(new Date()).diff(moment(user.birth), 'years', true));
       });
     }
 
     function getUserData() {
       var deferred = $q.defer();
-      user.getByName(_userName).then(function (user) {
+      utility.getUserByName(_userName).then(function (user) {
         vm.user = user;
         return deferred.resolve();
       });
@@ -1583,17 +1720,6 @@
         }
         vm.isFavorited = !_.isUndefined(user.favorites[vm.user.$id]);
       });
-    }
-
-    function startBgCarousel() {
-      vm.activeBg = 0;
-      $interval(function () {
-        if (vm.activeBg === vm.userPhotos.length - 1) {
-          vm.activeBg = 0;
-          return;
-        }
-        return vm.activeBg++;
-      }, 6000);
     }
 
     function addFavorite() {
@@ -1805,25 +1931,29 @@
 
   angular.module('app.room').controller('RoomController', RoomController);
 
-  RoomController.$inject = ['$rootScope', '$stateParams', 'currentAuth', 'photo', 'room', 'user'];
+  RoomController.$inject = ['$rootScope', '$stateParams', 'data', 'photo', 'room', 'Room', 'user', 'User'];
 
-  function RoomController($rootScope, $stateParams, currentAuth, photo, room, user) {
+  function RoomController($rootScope, $stateParams, data, photo, room, Room, user, User) {
 
     var id = $stateParams.roomId;
 
     var vm = this;
-    vm.me = currentAuth;
-    vm.roomId = id;
-    vm.room = {};
-    vm.users = {};
-    vm.isMe = isMe;
-    vm.postMessage = postMessage;
-    vm.schedule = [];
+    vm.room = new Room(id);
 
     activate();
 
     function activate() {
-      room.get(id).$watch(getMessages);
+      vm.room.$loaded(function (room) {
+        angular.forEach(['guest', 'host'], function (type) {
+          if (room[type] === data.me.$id) {
+            room[type] = data.me;
+            room.me = type;
+          } else {
+            room[type] = new User(room[type]);
+          }
+        });
+      });
+      vm.schedule = [];
       setCalendarConfig();
       vm.schedule.push([{
         title: 'Open Sesame',
@@ -1832,34 +1962,6 @@
         allDay: true,
         className: ['openSesame']
       }]);
-    }
-
-    function getMessages() {
-      room.isMessageLoaded = false;
-      room.get(id).$loaded().then(function (room) {
-        vm.room = room;
-        user.get(room.guest).$loaded().then(function (guest) {
-          vm.guest = guest;
-        });
-        user.get(room.host).$loaded().then(function (host) {
-          vm.host = host;
-          vm.host.photos = photo.getAll();
-        });
-        angular.forEach(room, function (value, key) {
-          if (key !== 'guest' && key !== 'host') return;
-          if (value !== $rootScope.statuses.userId) return;
-          room.me = $rootScope.statuses.userName;
-        });
-        room.isMessageLoaded = true;
-        // angular.forEach(room.userIds, function (bool, userId) {
-        //   user.get(userId).$loaded().then(function (user) {
-        //     vm.users[user.name] = user;
-        //     if (_.includes(user.accountIds, currentAuth.uid)) {
-        //       room.me = user.name;
-        //     }
-        //   });
-        // });
-      });
     }
 
     function setCalendarConfig() {
@@ -1874,20 +1976,6 @@
           }
         }
       };
-    }
-
-    function isMe(userId) {
-      return vm.room.me === userId;
-    }
-
-    function postMessage() {
-      var postData = {
-        message: vm.newMessage,
-        userId: vm.room.me
-      };
-      room.postMessage(vm.room.$id, postData).then(function () {
-        vm.newMessage = '';
-      });
     }
   }
 })();

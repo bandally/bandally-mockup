@@ -5,7 +5,7 @@
   </div>
   <div class="well">
     <h2>予定調整</h2>
-    <div ng-repeat="room in home.rooms">
+    <div ng-repeat="room in home.me.rooms">
       <a ui-sref="room({ roomId: room.$id })">
         <img ng-src="{{ room.you.imageUrl }}" alt="">
         {{ room.you.fullName }}
@@ -18,7 +18,7 @@
       <div class="col-sm-6">
         <h3>お気に入りリスト</h3>
         <div class="favorite-users">
-          <div class="favorite-user" ng-repeat="user in home.favoriteUsers">
+          <div class="favorite-user" ng-repeat="user in home.me.favorites">
             <a ui-sref="hosts({ userId: user.name })">
               <img ng-src="{{ user.imageUrl }}" alt="">
               {{ user.fullName }}
@@ -35,7 +35,7 @@
   <div class="well">
     <h2>写真</h2>
     <div class="photos">
-      <div class="photo" ng-repeat="photo in home.photos">
+      <div class="photo" ng-repeat="photo in home.me.photos">
         <span class="photo-image" ng-style="{ backgroundImage: 'url(' + photo.data + ')' }"></span>
         <button class="btn btn-default btn-block" ng-click="home.showModal(photo.$id)" ng-if="!photo.isSpot">
           <i class="fa fa-map-marker"></i>

@@ -1,3 +1,15 @@
+<section class="map-section map-canvas" ng-class="{ loading: spots.isLoading }">
+  <ui-gmap-google-map center="spots.map.center" pan="true" zoom="spots.map.zoom" control="spots.control" refresh="spots.refresh" events="spots.map.events" dragging="spots.map.dragging" bounds="spots.map.bounds">
+    <ui-gmap-search-box template="spots.searchbox.template" events="spots.searchbox.events" position="spots.searchbox.position"></ui-gmap-search-box>
+    <ui-gmap-markers models="spots.markers" coords="'self'">
+      <ui-gmap-windows show="show">
+        <a ng-non-bindable href="#/{{ userId }}">
+          <span class="map-window-image" style="background-image: url({{ photos[0].data }})"></span>
+        </a>
+      </ui-gmap-windows>
+    </ui-gmap-markers>
+  </ui-gmap-google-map>
+</section>
 <section class="list-section list-with-photo">
   <div class="search-section well">
     <form class="form-inline">
@@ -16,16 +28,4 @@
     </li>
   </ul>
   <p class="no-item text-muted" ng-if="!spots.markers.length">Not found.</p>
-</section>
-<section class="map-section map-canvas" ng-class="{ loading: spots.isLoading }">
-  <ui-gmap-google-map center="spots.map.center" pan="true" zoom="spots.map.zoom" control="spots.control" refresh="spots.refresh" events="spots.map.events" dragging="spots.map.dragging" bounds="spots.map.bounds">
-    <ui-gmap-search-box template="spots.searchbox.template" events="spots.searchbox.events" position="spots.searchbox.position"></ui-gmap-search-box>
-    <ui-gmap-markers models="spots.markers" coords="'self'">
-      <ui-gmap-windows show="show">
-        <a ng-non-bindable href="#/{{ userId }}">
-          <span class="map-window-image" style="background-image: url({{ photos[0].data }})"></span>
-        </a>
-      </ui-gmap-windows>
-    </ui-gmap-markers>
-  </ui-gmap-google-map>
 </section>

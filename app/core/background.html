@@ -1,0 +1,6 @@
+<div class="bg">
+  <ul class="bg-images">
+    <li class="bg-image" ng-repeat="photo in background.backgroundImages" ng-class="{ active: background.activeBg == $index }" ng-style="{ backgroundImage: 'url(' + photo.data + ')'}"></li>
+  </ul>
+  <div class="bg-cover"></div>
+</div>
