@@ -1008,10 +1008,6 @@
     }
 
     function save(data) {
-      angular.forEach(data, function (value, key) {
-        console.log($firebaseObject(ref.child(key)));
-      });
-
       var deferred = $q.defer();
       ref.update(data, function (error) {
         if (error) {
@@ -2147,9 +2143,15 @@
     function placesChanged(searchBox) {
       var place = searchBox.getPlaces();
       if (!place || place === 'undefined' || place.length === 0) return;
-      vm.map.center = {
-        latitude: place[0].geometry.location.lat(),
-        longitude: place[0].geometry.location.lng()
+      vm.map.bounds = {
+        northeast: {
+          latitude: place[0].geometry.viewport.getNorthEast().lat(),
+          longitude: place[0].geometry.viewport.getNorthEast().lng()
+        },
+        southwest: {
+          latitude: place[0].geometry.viewport.getSouthWest().lat(),
+          longitude: place[0].geometry.viewport.getSouthWest().lng()
+        }
       };
     }
 
