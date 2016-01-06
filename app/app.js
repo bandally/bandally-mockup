@@ -1008,6 +1008,10 @@
     }
 
     function save(data) {
+      angular.forEach(data, function (value, key) {
+        console.log($firebaseObject(ref.child(key)));
+      });
+
       var deferred = $q.defer();
       ref.update(data, function (error) {
         if (error) {
@@ -1067,79 +1071,86 @@
 
   function UserFactory($firebaseArray, $firebaseObject, $q, config, Transaction) {
 
-    var _user;
-
     return $firebaseObject.$extend({
       $$updated: function (snapshot) {
         var changed = $firebaseObject.prototype.$$updated.apply(this, arguments);
-        _user = this;
-        getPhotos();
-        adjustMessages();
+        getPhotos(this);
+        adjustMessages(this);
         return changed;
       },
-      getRooms: getRooms,
-      getFavorites: getFavorites,
-      getLanguages: getLanguages,
-      removePhoto: removePhoto
+      getRooms: function () {
+        var user = this;
+        if (!_.has(user, 'rooms')) return;
+        var roomsRef = new Firebase(config.serverUrl + 'rooms');
+        var rooms = [];
+        angular.forEach(user.rooms, function (bool, roomId) {
+          rooms.push($firebaseObject(roomsRef.child(roomId)));
+        });
+        user.rooms = rooms;
+      },
+      getFavorites: function () {
+        var user = this;
+        if (!_.has(user, 'favorites')) return;
+        var favoritesRef = new Firebase(config.serverUrl + 'users');
+        var favorites = [];
+        angular.forEach(user.favorites, function (bool, favoriteUserId) {
+          favorites.push($firebaseObject(favoritesRef.child(favoriteUserId)));
+        });
+        user.favorites = favorites;
+      },
+      getLanguages: function () {
+        var user = this;
+        var languagesRef = new Firebase(config.serverUrl + 'languages');
+        $firebaseArray(languagesRef).$loaded(function (languages) {
+          user.languages = _.filter(languages, function (language) {
+            return _.has(user.languages, language.$id);
+          });
+        });
+      },
+      removePhoto: function (photoId) {
+        var user = this;
+        var deferred = $q.defer();
+        var updateData = {};
+        var updateKey1 = 'photos/' + user.$id + '/' + photoId;
+        var updateKey2 = 'spots/' + user.$id + '::' + photoId;
+        updateData[updateKey1] = null;
+        updateData[updateKey2] = null;
+        Transaction.save(updateData).then(
+          function (ref) {
+            return deferred.resolve(ref);
+          },
+          function (error) {
+            return deferred.reject(error);
+          }
+        );
+        return deferred.promise;
+      },
+      releaseSpot: function (photoId) {
+        var user = this;
+        var deferred = $q.defer();
+        var updateData = {};
+        var updateKey1 = 'spots/' + user.$id + '::' + photoId;
+        updateData[updateKey1] = null;
+        Transaction.save(updateData).then(
+          function (ref) {
+            return deferred.resolve(ref);
+          },
+          function (error) {
+            return deferred.reject(error);
+          }
+        );
+        return deferred.promise;
+      }
     });
 
-    function getPhotos() {
+    function getPhotos(user) {
       var photosRef = new Firebase(config.serverUrl + 'photos');
-      _user.photos = $firebaseArray(photosRef.child(_user.$id));
+      user.photos = $firebaseArray(photosRef.child(user.$id));
     }
 
-    function adjustMessages() {
-      var userMessagesRef = new Firebase(config.serverUrl + 'users/' + _user.$id + '/messages');
-      _user.messages = $firebaseArray(userMessagesRef);
-    }
-
-    function getRooms() {
-      if (!_.has(_user, 'rooms')) return;
-      var roomsRef = new Firebase(config.serverUrl + 'rooms');
-      var rooms = [];
-      angular.forEach(_user.rooms, function (bool, roomId) {
-        rooms.push($firebaseObject(roomsRef.child(roomId)));
-      });
-      _user.rooms = rooms;
-    }
-
-    function getFavorites() {
-      if (!_.has(_user, 'favorites')) return;
-      var favoritesRef = new Firebase(config.serverUrl + 'users');
-      var favorites = [];
-      angular.forEach(_user.favorites, function (bool, favoriteUserId) {
-        favorites.push($firebaseObject(favoritesRef.child(favoriteUserId)));
-      });
-      _user.favorites = favorites;
-    }
-
-    function getLanguages() {
-      var languagesRef = new Firebase(config.serverUrl + 'languages');
-      $firebaseArray(languagesRef).$loaded(function (languages) {
-        _user.languages = _.filter(languages, function (language) {
-          return _.has(_user.languages, language.$id);
-        });
-      });
-    }
-
-    function removePhoto(photoId) {
-      var deferred = $q.defer();
-      var updateData = {};
-      var updateKey1 = 'users/' + _user.$id + '/photos/' + photoId;
-      var updateKey2 = 'photos/' + photoId;
-      var updateKey3 = 'spots/' + photoId;
-      updateData[updateKey1] = null;
-      updateData[updateKey2] = null;
-      updateData[updateKey3] = null;
-      Transaction.save(updateData).then(
-        function (ref) {
-          return deferred.resolve(ref);
-        },
-        function (error) {
-          return deferred.reject(error);
-        }
-      );
-      return deferred.promise;
+    function adjustMessages(user) {
+      var userMessagesRef = new Firebase(config.serverUrl + 'users/' + user.$id + '/messages');
+      user.messages = $firebaseArray(userMessagesRef);
     }
   }
 
@@ -1318,6 +1329,7 @@
     vm.me = data.me;
     vm.removePhoto = removePhoto;
     vm.showModal = showModal;
+    vm.releaseSpot = releaseSpot;
 
     activate();
 
@@ -1389,6 +1401,17 @@
         function (reason) {
           if (reason === 'cancel' || reason === 'backdrop click') return;
           return toastr.error('Spot registeration failed!', 'Error');
+        }
+      );
+    }
+
+    function releaseSpot(photoId) {
+      data.me.releaseSpot(photoId).then(
+        function (ref) {
+          return toastr.success('Spot released!');
+        },
+        function (error) {
+          return toastr.error('Spot release failed!');
         }
       );
     }
