@@ -5,7 +5,7 @@
   </div>
   <div class="well">
     <h2>予定調整</h2>
-    <div ng-repeat="room in home.me.rooms">
+    <div ng-repeat="room in home.me.roomsData">
       <a ui-sref="room({ roomId: room.$id })">
         <img ng-src="{{ room.you.imageUrl }}" alt="">
         {{ room.you.fullName }}
@@ -18,7 +18,7 @@
       <div class="col-sm-6">
         <h3>お気に入りリスト</h3>
         <div class="favorite-users">
-          <div class="favorite-user" ng-repeat="user in home.me.favorites">
+          <div class="favorite-user" ng-repeat="user in home.me.favoritesData">
             <a ui-sref="hosts({ userId: user.name })">
               <img ng-src="{{ user.imageUrl }}" alt="">
               {{ user.fullName }}

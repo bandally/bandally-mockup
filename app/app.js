@@ -263,10 +263,7 @@
         _defferd.resolve();
         return _defferd.promise;
       }
-      var me = new User(authData.uid);
-      me.$loaded(function (me) {
-        data.me = me;
-      });
+      data.me = new User(authData.uid);
       user.get(authData.uid).$loaded().then(function (me) {
         $rootScope.me = me;
         angular.merge($rootScope, {
@@ -540,16 +537,6 @@
         return $state.go('spots');
       }
     });
-
-    // 認証が完了した際の処理
-    // auth.firebase.$onAuth(function (authData) {
-    //   if (_.isNull(authData)) return;
-    //   var me = new User(authData.uid);
-    //   me.$loaded(function (me) {
-    //     $rootScope.me = me;
-    //     $rootScope.$broadcast('loggedIn');
-    //   });
-    // });
   }
 })();
 
@@ -1082,7 +1069,7 @@
         angular.forEach(user.rooms, function (bool, roomId) {
           rooms.push($firebaseObject(roomsRef.child(roomId)));
         });
-        user.rooms = rooms;
+        user.roomsData = rooms;
       },
       getFavorites: function () {
         var user = this;
@@ -1092,13 +1079,13 @@
         angular.forEach(user.favorites, function (bool, favoriteUserId) {
           favorites.push($firebaseObject(favoritesRef.child(favoriteUserId)));
         });
-        user.favorites = favorites;
+        user.favoritesData = favorites;
       },
       getLanguages: function () {
         var user = this;
         var languagesRef = new Firebase(config.serverUrl + 'languages');
         $firebaseArray(languagesRef).$loaded(function (languages) {
-          user.languages = _.filter(languages, function (language) {
+          user.languagesData = _.filter(languages, function (language) {
             return _.has(user.languages, language.$id);
           });
         });
@@ -1323,6 +1310,7 @@
 
     var vm = this;
     vm.me = data.me;
+    vm.rooms = [];
     vm.removePhoto = removePhoto;
     vm.showModal = showModal;
     vm.releaseSpot = releaseSpot;
@@ -1345,7 +1333,7 @@
 
     function getRoom() {
       vm.me.getRooms();
-      angular.forEach(vm.me.rooms, function (room) {
+      angular.forEach(vm.me.roomsData, function (room) {
         room.$loaded(function (room) {
           angular.forEach(room, function (value, key) {
             if (key !== 'guest' && key !== 'host') return;
@@ -1357,7 +1345,6 @@
     }
 
     function checkPhotos() {
-      console.log(vm.me.photos);
       vm.me.photos.$loaded(function (photos) {
         angular.forEach(vm.me.photos, function (photo) {
           var spotKey = [userId, photo.$id].join('::');
@@ -1678,7 +1665,6 @@
     var vm = this;
     vm.isMe = data.me.name === _userName;
     vm.isFavorited = false;
-    // vm.me = currentAuth;
     vm.user = {};
     vm.userLanguages = [];
     vm.userPhotos = [];
@@ -2159,7 +2145,7 @@
       vm.map.center = {
         latitude: place[0].geometry.location.lat(),
         longitude: place[0].geometry.location.lng()
-      }
+      };
       vm.map.zoom = 17;
     }
 

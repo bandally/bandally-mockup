@@ -20,8 +20,8 @@
     </p>
     <p>
       <i class="fa fa-language fa-lg fa-fw"></i>
-      <span class="label label-default" ng-repeat="language in hosts.user.languages">{{ language.$value }}</span>
-      <span class="text-muted" ng-if="!hosts.user.languages.length">Unanswered</span>
+      <span class="label label-default" ng-repeat="language in hosts.user.languagesData">{{ language.$value }}</span>
+      <span class="text-muted" ng-if="!hosts.user.languagesData.length">Unanswered</span>
     </p>
     <p ng-if="hosts.user.residence">
       <i class="fa fa-map-marker fa-lg fa-fw"></i>
