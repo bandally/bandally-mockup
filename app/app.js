@@ -49,18 +49,6 @@
 (function () {
   'use strict';
 
-  angular.module('app.account', []);
-})();
-
-(function () {
-  'use strict';
-
-  angular.module('app.home', []);
-})();
-
-(function () {
-  'use strict';
-
   angular.module('app.hosts', []);
 })();
 
@@ -101,59 +89,145 @@
 (function () {
   'use strict';
 
-  angular.module('app').controller('AccountController', AccountController);
+  angular.module('app.account', []);
+})();
 
-  AccountController.$inject = ['currentAuth', 'toastr', 'user'];
+(function () {
+  'use strict';
 
-  function AccountController(currentAuth, toastr, user) {
+  angular.module('app.home', []);
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app').controller('AcceptController', AcceptController);
+
+  AcceptController.$inject = ['$state', '$stateParams', 'contact', 'data', 'room', 'toastr', 'Transaction', 'User'];
+
+  function AcceptController($state, $stateParams, contact, data, room, toastr, Transaction, User) {
+
+    var id = $stateParams.contactId;
+    var notificationId = $stateParams.notificationId;
 
     var vm = this;
-    vm.me = currentAuth;
-    vm.update = update;
+    vm.contact = {};
+    vm.accept = accept;
+    vm.dontAccept = dontAccept;
 
     activate();
 
     function activate() {
-      getUserData();
-    }
-
-    function getUserData() {
-      user.get(currentAuth.uid).$loaded().then(function (userData) {
-        var birthDay;
-        if (!_.isNull(userData.birth)) {
-          birthDay = moment(userData.birth)._d;
-        }
-        vm.name = userData.name || '';
-        vm.fullName = userData.fullName || '';
-        vm.email = userData.email || '';
-        vm.gender = userData.gender || '';
-        vm.languages = userData.languages || '';
-        vm.birth = birthDay || '';
-        vm.job = userData.job || '';
-        vm.residence = userData.residence || '';
-        vm.languageCollection = _.keys(vm.languages);
-        vm.messages = userData.messages || '';
+      contact.get(id).$loaded().then(function (contact) {
+        vm.contact = contact;
+        vm.contact.guestData = new User(contact.guest);
       });
     }
 
-    function update() {
-      var birthTime = new Date(vm.birth).getTime();
-      var birthDay = moment(birthTime).format('YYYY-MM-DD');
-      var key = currentAuth.uid;
-      var updateData = {
-        name: vm.name,
-        fullName: vm.fullName,
-        email: vm.email,
-        gender: vm.gender,
-        languages: vm.languages,
-        birth: birthDay,
-        job: vm.job,
-        residence: vm.residence,
-        messages: vm.messages,
-        imageUrl: currentAuth.facebook.profileImageURL
-      };
-      user.save(key, updateData).then(function (ref) {
-        toastr.success('Update Success!');
+    function accept() {
+      var newRoomId = room.getNewRef().key();
+      var saveData = {};
+      var saveKey1 = 'rooms/' + newRoomId + '/guest';
+      var saveKey2 = 'rooms/' + newRoomId + '/host';
+      var saveKey3 = 'users/' + vm.contact.guest + '/rooms/' + newRoomId;
+      var saveKey4 = 'users/' + vm.contact.host + '/rooms/' + newRoomId;
+      var saveKey5 = 'users/' + vm.contact.host + '/notifications/' + notificationId;
+      var saveKey6 = 'contacts/' + id;
+      saveData[saveKey1] = vm.contact.guest;
+      saveData[saveKey2] = vm.contact.host;
+      saveData[saveKey3] = true;
+      saveData[saveKey4] = true;
+      saveData[saveKey5] = null;
+      saveData[saveKey6] = null;
+      Transaction.save(saveData).then(
+        function (ref) {
+          toastr.success('承認しました');
+          return $state.go('room', {
+            roomId: newRoomId
+          });
+        },
+        function (error) {
+          return toastr.error('承認できませんでした');
+        }
+      );
+    }
+
+    function dontAccept() {
+      var saveData = {};
+      var saveKey1 = 'users/' + vm.contact.host + '/notifications/' + notificationId;
+      var saveKey2 = 'contacts/' + id;
+      saveData[saveKey1] = null;
+      saveData[saveKey2] = null;
+      Transaction.save(saveData).then(
+        function (ref) {
+          toastr.success('拒否しました');
+          return $state.go('home');
+        },
+        function (error) {
+          return toastr.error('拒否できませんでした');
+        }
+      );
+    }
+  }
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app').controller('ContactController', ContactController);
+
+  ContactController.$inject = ['$rootScope', '$stateParams', '$uibModalInstance', 'contact', 'user', 'userId'];
+
+  function ContactController($rootScope, $stateParams, $uibModalInstance, contact, user, userId) {
+
+    var hostName = $stateParams.userId;
+
+    var vm = this;
+    vm.status = {};
+    vm.place = '';
+    vm.date = new Date();
+    vm.openCalendar = openCalendar;
+    vm.cancel = cancel;
+    vm.ok = ok;
+
+    activate();
+
+    function activate() {
+      vm.status.opened = false;
+    }
+
+    function openCalendar($event) {
+      vm.status.opened = true;
+    }
+
+    function cancel() {
+      $uibModalInstance.dismiss('cancel');
+    }
+
+    function ok() {
+      userId.get(hostName).$loaded().then(function (userId) {
+        var hostId = userId.$value;
+        var guestId = $rootScope.statuses.userId;
+        var contactData = {
+          place: vm.place,
+          date: vm.date.toString(),
+          host: hostId,
+          guest: guestId
+        };
+        contact.add(contactData).then(function (ref) {
+          var notificationData = {
+            from: guestId,
+            contactId: ref.key(),
+            created: new Date().toString()
+          };
+          user.addNotification(hostName, notificationData).then(function (ref) {
+            $uibModalInstance.close();
+          }, function (error) {
+            $uibModalInstance.dismiss(error);
+          });
+        }, function (error) {
+          $uibModalInstance.dismiss(error);
+        });
       });
     }
   }
@@ -162,17 +236,646 @@
 (function () {
   'use strict';
 
-  angular.module('app.account').config(route);
+  angular.module('app').controller('HostsController', HostsController);
+
+  HostsController.$inject = ['$interval', '$q', '$rootScope', '$stateParams', '$uibModal', 'currentAuth', 'data', 'language', 'photo', 'Photo', 'toastr', 'user', 'utility'];
+
+  function HostsController($interval, $q, $rootScope, $stateParams, $uibModal, currentAuth, data, language, photo, Photo, toastr, user, utility) {
+
+    var _userName = $stateParams.userId;
+
+    var vm = this;
+    vm.isMe = data.me.name === _userName;
+    vm.isFavorited = false;
+    vm.user = {};
+    vm.userMessages = [];
+    vm.addFavorite = addFavorite;
+    vm.removeFavorite = removeFavorite;
+    vm.showModal = showModal;
+
+    activate();
+
+    function activate() {
+      getUserData().then(function () {
+        checkFavorited();
+        vm.user.getPhotos();
+        vm.user.getLanguages();
+        // vm.user.age = _.isUndefined(user.birth) ? null : Math.floor(moment(new Date()).diff(moment(user.birth), 'years', true));
+      });
+    }
+
+    function getUserData() {
+      var deferred = $q.defer();
+      utility.getUserByName(_userName).then(function (user) {
+        vm.user = user;
+        return deferred.resolve();
+      });
+      return deferred.promise;
+    }
+
+    function checkFavorited() {
+      user.get($rootScope.statuses.userId).$loaded().then(function (user) {
+        if (_.isUndefined(user.favorites)) {
+          vm.isFavorited = false;
+          return;
+        }
+        vm.isFavorited = !_.isUndefined(user.favorites[vm.user.$id]);
+      });
+    }
+
+    function addFavorite() {
+      user.addFavorite(vm.user.$id).then(function (ref) {
+        user.addFavoritedCount(vm.user.$id).then(function (ref) {
+          vm.isFavorited = true;
+          return toastr.success('お気に入りに追加しました');
+        });
+      });
+    }
+
+    function removeFavorite() {
+      user.removeFavorite(vm.user.$id).then(function (ref) {
+        user.removeFavoritedCount(vm.user.$id).then(function (ref) {
+          vm.isFavorited = false;
+          return toastr.success('お気に入りを解除しました');
+        });
+      });
+    }
+
+    function showModal() {
+      var modalInstance = $uibModal.open({
+        templateUrl: 'app/hosts/contact.html',
+        controller: 'ContactController',
+        controllerAs: 'contact'
+      });
+      modalInstance.result.then(
+        function () {
+          return toastr.success('送信しました');
+        },
+        function (reason) {
+          if (reason === 'cancel') return;
+          return toastr.error('送信できませんでした', 'Error');
+        }
+      );
+    }
+  }
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app.hosts').config(route);
 
   route.$inject = ['$stateProvider'];
 
   function route($stateProvider) {
     $stateProvider
-      .state('account', {
-        url: '/account',
-        controller: 'AccountController',
-        controllerAs: 'account',
-        templateUrl: 'app/account/account.html',
+      .state('hosts', {
+        url: '/:userId',
+        controller: 'HostsController',
+        controllerAs: 'hosts',
+        templateUrl: 'app/hosts/hosts.html',
+        resolve: {
+          currentAuth: getCurrentAuth
+        }
+      })
+      .state('accept', {
+        url: '/accept/:contactId::notificationId',
+        controller: 'AcceptController',
+        controllerAs: 'accept',
+        templateUrl: 'app/hosts/accept.html',
+        resolve: {
+          currentAuth: getCurrentAuth
+        }
+      });
+  }
+
+  getCurrentAuth.$inject = ['auth'];
+
+  function getCurrentAuth(auth) {
+    return auth.check(true);
+  }
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app').directive('header', header);
+
+  header.$inject = [];
+
+  function header() {
+    return {
+      templateUrl: 'app/layout/header.html',
+      scope: {},
+      controller: HeaderController,
+      controllerAs: 'header',
+      bindToController: true
+    };
+  }
+
+  HeaderController.$inject = ['$rootScope', '$scope', '$state', '$translate', 'auth', 'data', 'User'];
+
+  function HeaderController($rootScope, $scope, $state, $translate, auth, data, User) {
+
+    var vm = this;
+    vm.rootScope = $rootScope;
+    vm.data = data;
+    vm.notifications = [];
+    vm.changeLocale = changeLocale;
+    vm.onNotificationClick = onNotificationClick;
+    vm.logout = logout;
+    vm.isLoggedIn = isLoggedIn;
+
+    activate();
+
+    function activate() {
+      $scope.$watch('header.data.me', function (me) {
+        angular.forEach(me.notifications, function (notification, notificationId) {
+          notification.id = notificationId;
+          vm.notifications.push(notification);
+          notification.sender = new User(notification.from);
+        });
+      });
+    }
+
+    function changeLocale(langKey) {
+      $translate.use(langKey);
+    }
+
+    function onNotificationClick(notification) {
+      $state.go('accept', {
+        contactId: notification.contactId,
+        notificationId: notification.id
+      });
+    }
+
+    function isLoggedIn() {
+      return _.size(data.me);
+    }
+
+    function logout() {
+      auth.logout();
+      $state.go('spots');
+    }
+  }
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app').directive('chat', chat);
+
+  chat.$inject = [];
+
+  function chat() {
+    return {
+      templateUrl: 'app/room/chat.html',
+      scope: {
+        roomId: '='
+      },
+      controller: ChatController,
+      controllerAs: 'chat',
+      bindToController: true
+    };
+  }
+
+  ChatController.$inject = ['$rootScope', 'room', 'user'];
+
+  function ChatController($rootScope, room, user) {
+
+    var vm = this;
+    vm.isMessagesLoaded = false;
+    vm.postMessage = postMessage;
+
+    activate();
+
+    function activate() {
+      getRoom();
+      room.getMessages(vm.roomId).$watch(getRoom);
+    }
+
+    function getRoom() {
+      room.get(vm.roomId).$loaded().then(function (room) {
+        vm.messages = room.messages;
+        getYourData(room);
+        angular.forEach(room.messages, function (message) {
+          message.isMe = message.userId === $rootScope.statuses.userId;
+        });
+        vm.isMessagesLoaded = true;
+      });
+    }
+
+    function getYourData(room) {
+      angular.forEach(room, function (value, key) {
+        if (key !== 'guest' && key !== 'host') return;
+        if (value === $rootScope.statuses.userId) return;
+        user.get(value).$loaded().then(function (user) {
+          vm.you = user;
+        });
+      });
+    }
+
+    function postMessage() {
+      var postData = {
+        message: vm.newMessage,
+        userId: $rootScope.statuses.userId
+      };
+      room.postMessage(vm.roomId, postData).then(function (ref) {
+        vm.newMessage = '';
+      });
+    }
+  }
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app.room').controller('RoomController', RoomController);
+
+  RoomController.$inject = ['$rootScope', '$stateParams', 'data', 'photo', 'room', 'Room', 'user', 'User'];
+
+  function RoomController($rootScope, $stateParams, data, photo, room, Room, user, User) {
+
+    var id = $stateParams.roomId;
+
+    var vm = this;
+    vm.room = new Room(id);
+
+    activate();
+
+    function activate() {
+      vm.room.$loaded(function (room) {
+        angular.forEach(['guest', 'host'], function (type) {
+          if (room[type] === data.me.$id) {
+            room[type] = data.me;
+            room.me = type;
+          } else {
+            room[type] = new User(room[type]);
+          }
+        });
+      });
+      vm.schedule = [];
+      setCalendarConfig();
+      vm.schedule.push([{
+        title: 'Open Sesame',
+        start: new Date(2015, 11, 28),
+        // end: new Date(2015, 11, 29),
+        allDay: true,
+        className: ['openSesame']
+      }]);
+    }
+
+    function setCalendarConfig() {
+      vm.uiConfig = {
+        calendar: {
+          height: 500,
+          editable: true,
+          header: {
+            left: 'title',
+            center: '',
+            right: 'prev,today,next'
+          }
+        }
+      };
+    }
+  }
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app.room').config(route);
+
+  route.$inject = ['$stateProvider'];
+
+  function route($stateProvider) {
+    $stateProvider
+      .state('room', {
+        url: '/rooms/:roomId',
+        controller: 'RoomController',
+        controllerAs: 'room',
+        templateUrl: 'app/room/room.html',
+        resolve: {
+          currentAuth: getCurrentAuth
+        }
+      });
+  }
+
+  getCurrentAuth.$inject = ['auth'];
+
+  function getCurrentAuth(auth) {
+    return auth.check(true);
+  }
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app.spots').controller('SpotsController', SpotsController);
+
+  SpotsController.$inject = ['$q', '$rootScope', '$scope', 'currentAuth', 'language', 'photo', 'spot', 'uiGmapGoogleMapApi', 'user'];
+
+  function SpotsController($q, $rootScope, $scope, currentAuth, language, photo, spot, uiGmapGoogleMapApi, user) {
+
+    var _bounds = {};
+    var _isDragging = false;
+
+    var vm = this;
+    vm.me = currentAuth;
+    vm.isLoading = false;
+    vm.map = {};
+    vm.control = {};
+    vm.events = {};
+    vm.markers = [];
+    vm.searchbox = {};
+    vm.languages = {};
+    vm.getSpots = getSpots;
+
+    activate();
+
+    function activate() {
+      setGoogleMap();
+      setSearchbox();
+      getLanguages();
+    }
+
+    function setGoogleMap() {
+      setMapHeight();
+      vm.map.center = {
+        latitude: 0,
+        longitude: 0
+      };
+      vm.map.zoom = 3;
+      vm.map.events = {
+        bounds_changed: boundsChanged,
+        drag: drag,
+        dragend: dragend
+      };
+      vm.map.bounds = {
+        northeast: {
+          latitude: 180,
+          longitude: 180
+        },
+        southwest: {
+          latitude: -180,
+          longitude: -180
+        }
+      };
+    }
+
+    function setMapHeight() {
+      var contentHeight = window.innerHeight - 58 - 25;
+      angular.element(document).find('.angular-google-map-container').css({ height: contentHeight + 'px' });
+    }
+
+    function boundsChanged(map) {
+      if (_isDragging) return;
+      if (vm.isLoading) return;
+      getBounds(map);
+      getSpots();
+    }
+
+    function drag() {
+      _isDragging = true;
+    }
+
+    function dragend(map) {
+      _isDragging = false;
+      if (vm.isLoading) return;
+      getBounds(map);
+      getSpots();
+    }
+
+    function getBounds(map) {
+      _bounds = {
+        ne: {
+          lat: map.getBounds().getNorthEast().lat(),
+          lng: map.getBounds().getNorthEast().lng()
+        },
+        sw: {
+          lat: map.getBounds().getSouthWest().lat(),
+          lng: map.getBounds().getSouthWest().lng()
+        }
+      };
+    }
+
+    function setSearchbox() {
+      vm.searchbox = {
+        template: 'app/spots/searchbox.html',
+        events: {
+          places_changed: placesChanged
+        },
+        position: 'top-right'
+      };
+    }
+
+    function placesChanged(searchBox) {
+      var place = searchBox.getPlaces();
+      if (!place || place === 'undefined' || place.length === 0) return;
+      if (_.has(place[0].geometry, 'viewport')) {
+        vm.map.bounds = {
+          northeast: {
+            latitude: place[0].geometry.viewport.getNorthEast().lat(),
+            longitude: place[0].geometry.viewport.getNorthEast().lng()
+          },
+          southwest: {
+            latitude: place[0].geometry.viewport.getSouthWest().lat(),
+            longitude: place[0].geometry.viewport.getSouthWest().lng()
+          }
+        };
+        return;
+      }
+      vm.map.center = {
+        latitude: place[0].geometry.location.lat(),
+        longitude: place[0].geometry.location.lng()
+      };
+      vm.map.zoom = 17;
+    }
+
+    function getSpots() {
+      vm.isLoading = true;
+      vm.markers = [];
+      var locations = [];
+      angular.forEach(_bounds, function (points) {
+        var location = [];
+        angular.forEach(points, function (point) {
+          location.push(point);
+        });
+        locations.push(location);
+      });
+      var distance = spot.distance(locations);
+      var radius = distance / 3;
+      spot.query(_.values(vm.map.center), radius).then(getSpotsSuccess, getSpotFailed);
+    }
+
+    function getSpotsSuccess(spots) {
+      var promises = [];
+      angular.forEach(spots, function (spot, index) {
+        promises.push((function (spot, index) {
+          setSpotData(spot, index);
+        })(spot, index));
+      });
+      $q.all(promises).then(function () {
+        vm.isLoading = false;
+      });
+    }
+
+    function getSpotFailed(error) {
+      vm.isLoading = false;
+    }
+
+    function setSpotData(spot, index) {
+      var deferred = $q.defer();
+      var newSpot = {};
+      var ids = spot.id.split('::');
+      var userId = ids[0];
+      newSpot.id = ids[1];
+      newSpot.latitude = spot.location[0];
+      newSpot.longitude = spot.location[1];
+      newSpot.show = true;
+      newSpot.events = {
+        mouseover: function (marker) {
+          newSpot.show = true;
+        },
+        mouseout: function (marker) {
+          newSpot.show = false;
+        }
+      };
+      newSpot.photos = [];
+      var photoKey = userId + '/' + newSpot.id;
+      photo.get(photoKey).$loaded().then(function (photo) {
+        newSpot.photos.push(photo);
+        photo.user = {};
+        return user.get(userId).$loaded().then(function (user) {
+          photo.user = user;
+          newSpot.userId = user.name;
+          var keepGoing = true;
+          angular.forEach(vm.languages, function (language) {
+            if (!keepGoing) return;
+            if (!language.checked) return;
+            if (!_.has(newSpot.photos[0].user.languages, language.$id)) return;
+            vm.markers.push(newSpot);
+            keepGoing = false;
+          });
+          return deferred.resolve();
+        });
+      });
+      return deferred.promise;
+    }
+
+    function getLanguages() {
+      language.getAll().$loaded().then(function (languages) {
+        vm.languages = languages;
+        angular.forEach(languages, function (language) {
+          language.checked = true;
+        });
+      });
+    }
+  }
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app.spots').config(route);
+
+  route.$inject = ['$stateProvider'];
+
+  function route($stateProvider) {
+    $stateProvider
+      .state('spots', {
+        url: '/',
+        controller: 'SpotsController',
+        controllerAs: 'spots',
+        templateUrl: 'app/spots/spots.html',
+        resolve: {
+          currentAuth: getCurrentAuth
+        }
+      });
+  }
+
+  getCurrentAuth.$inject = ['auth'];
+
+  function getCurrentAuth(auth) {
+    return auth.check(false);
+  }
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app').controller('TicketsAddController', TicketsAddController);
+
+  TicketsAddController.$inject = ['$state', 'ticket'];
+
+  function TicketsAddController($state, ticket) {
+    var vm = this;
+    vm.add = add;
+
+    activate();
+
+    function activate() {}
+
+    function add() {
+      ticket.$add({
+        departureDate: vm.departureDate,
+        arrivedDate: vm.arrivedDate,
+        destination: vm.destination,
+        languages: vm.languages,
+        message: vm.message
+      }).then(function () {
+        $state.go('tickets');
+      });
+    }
+  }
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app').controller('TicketsController', TicketsController);
+
+  TicketsController.$inject = ['ticket'];
+
+  function TicketsController(ticket) {
+    var vm = this;
+    vm.tickets = [];
+
+    activate();
+
+    function activate() {
+      vm.tickets = ticket;
+    }
+  }
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app.tickets').config(route);
+
+  route.$inject = ['$stateProvider'];
+
+  function route($stateProvider) {
+    $stateProvider
+      .state('tickets', {
+        url: '/tickets',
+        controller: 'TicketsController',
+        controllerAs: 'tickets',
+        templateUrl: 'app/tickets/tickets.html',
+        resolve: {
+          currentAuth: getCurrentAuth
+        }
+      })
+      .state('tickets.add', {
+        url: '/add',
+        views: {
+          "@": {
+            controller: 'TicketsAddController',
+            controllerAs: 'ticketsAdd',
+            templateUrl: 'app/tickets/tickets-add.html'
+          }
+        },
         resolve: {
           currentAuth: getCurrentAuth
         }
@@ -1307,6 +2010,94 @@
 (function () {
   'use strict';
 
+  angular.module('app').controller('AccountController', AccountController);
+
+  AccountController.$inject = ['currentAuth', 'toastr', 'user'];
+
+  function AccountController(currentAuth, toastr, user) {
+
+    var vm = this;
+    vm.me = currentAuth;
+    vm.update = update;
+
+    activate();
+
+    function activate() {
+      getUserData();
+    }
+
+    function getUserData() {
+      user.get(currentAuth.uid).$loaded().then(function (userData) {
+        var birthDay;
+        if (!_.isNull(userData.birth)) {
+          birthDay = moment(userData.birth)._d;
+        }
+        vm.name = userData.name || '';
+        vm.fullName = userData.fullName || '';
+        vm.email = userData.email || '';
+        vm.gender = userData.gender || '';
+        vm.languages = userData.languages || '';
+        vm.birth = birthDay || '';
+        vm.job = userData.job || '';
+        vm.residence = userData.residence || '';
+        vm.languageCollection = _.keys(vm.languages);
+        vm.messages = userData.messages || '';
+      });
+    }
+
+    function update() {
+      var birthTime = new Date(vm.birth).getTime();
+      var birthDay = moment(birthTime).format('YYYY-MM-DD');
+      var key = currentAuth.uid;
+      var updateData = {
+        name: vm.name,
+        fullName: vm.fullName,
+        email: vm.email,
+        gender: vm.gender,
+        languages: vm.languages,
+        birth: birthDay,
+        job: vm.job,
+        residence: vm.residence,
+        messages: vm.messages,
+        imageUrl: currentAuth.facebook.profileImageURL
+      };
+      user.save(key, updateData).then(function (ref) {
+        toastr.success('Update Success!');
+      });
+    }
+  }
+})();
+
+(function () {
+  'use strict';
+
+  angular.module('app.account').config(route);
+
+  route.$inject = ['$stateProvider'];
+
+  function route($stateProvider) {
+    $stateProvider
+      .state('account', {
+        url: '/account',
+        controller: 'AccountController',
+        controllerAs: 'account',
+        templateUrl: 'app/account/account.html',
+        resolve: {
+          currentAuth: getCurrentAuth
+        }
+      });
+  }
+
+  getCurrentAuth.$inject = ['auth'];
+
+  function getCurrentAuth(auth) {
+    return auth.check(true);
+  }
+})();
+
+(function () {
+  'use strict';
+
   angular.module('app').controller('HomeController', HomeController);
 
   HomeController.$inject = ['$rootScope', '$state', '$uibModal', 'data', 'Photo', 'room', 'spot', 'toastr', 'User'];
@@ -1379,6 +2170,7 @@
         templateUrl: 'app/home/register-spot.html',
         controller: 'RegisterSpotController',
         controllerAs: 'registerSpot',
+        size: 'lg',
         resolve: {
           photoId: function () {
             return photoId;
@@ -1449,6 +2241,7 @@
 
     var vm = this;
     vm.map = {};
+    vm.searchbox = {};
     vm.addSpot = addSpot;
     vm.cancel = cancel;
 
@@ -1458,6 +2251,7 @@
       initialize();
       setMap();
       setMarker();
+      setSearchbox();
       uiGmapIsReady.promise(1).then(function (instances) {
         vm.map.control.refresh(_spot);
       });
@@ -1477,7 +2271,17 @@
         events: {
           click: setMarkerByMapClicked
         },
-        control: {}
+        control: {},
+        bounds: {
+          northeast: {
+            latitude: 180,
+            longitude: 180
+          },
+          southwest: {
+            latitude: -180,
+            longitude: -180
+          }
+        }
       };
     }
 
@@ -1507,585 +2311,6 @@
       _spot = {
         latitude: marker.position.lat(),
         longitude: marker.position.lng()
-      };
-    }
-
-    function addSpot() {
-      var spotKey = [data.me.$id, photoId].join('::');
-      spot.add(spotKey, _.values(_spot)).then(
-        function () {
-          $uibModalInstance.close();
-        },
-        function (error) {
-          $uibModalInstance.dismiss(error);
-        }
-      );
-    }
-
-    function cancel() {
-      $uibModalInstance.dismiss('cancel');
-    }
-  }
-})();
-
-(function () {
-  'use strict';
-
-  angular.module('app').controller('AcceptController', AcceptController);
-
-  AcceptController.$inject = ['$state', '$stateParams', 'contact', 'data', 'room', 'toastr', 'Transaction', 'User'];
-
-  function AcceptController($state, $stateParams, contact, data, room, toastr, Transaction, User) {
-
-    var id = $stateParams.contactId;
-    var notificationId = $stateParams.notificationId;
-
-    var vm = this;
-    vm.contact = {};
-    vm.accept = accept;
-    vm.dontAccept = dontAccept;
-
-    activate();
-
-    function activate() {
-      contact.get(id).$loaded().then(function (contact) {
-        vm.contact = contact;
-        vm.contact.guestData = new User(contact.guest);
-      });
-    }
-
-    function accept() {
-      var newRoomId = room.getNewRef().key();
-      var saveData = {};
-      var saveKey1 = 'rooms/' + newRoomId + '/guest';
-      var saveKey2 = 'rooms/' + newRoomId + '/host';
-      var saveKey3 = 'users/' + vm.contact.guest + '/rooms/' + newRoomId;
-      var saveKey4 = 'users/' + vm.contact.host + '/rooms/' + newRoomId;
-      var saveKey5 = 'users/' + vm.contact.host + '/notifications/' + notificationId;
-      var saveKey6 = 'contacts/' + id;
-      saveData[saveKey1] = vm.contact.guest;
-      saveData[saveKey2] = vm.contact.host;
-      saveData[saveKey3] = true;
-      saveData[saveKey4] = true;
-      saveData[saveKey5] = null;
-      saveData[saveKey6] = null;
-      Transaction.save(saveData).then(
-        function (ref) {
-          toastr.success('承認しました');
-          return $state.go('room', {
-            roomId: newRoomId
-          });
-        },
-        function (error) {
-          return toastr.error('承認できませんでした');
-        }
-      );
-    }
-
-    function dontAccept() {
-      var saveData = {};
-      var saveKey1 = 'users/' + vm.contact.host + '/notifications/' + notificationId;
-      var saveKey2 = 'contacts/' + id;
-      saveData[saveKey1] = null;
-      saveData[saveKey2] = null;
-      Transaction.save(saveData).then(
-        function (ref) {
-          toastr.success('拒否しました');
-          return $state.go('home');
-        },
-        function (error) {
-          return toastr.error('拒否できませんでした');
-        }
-      );
-    }
-  }
-})();
-
-(function () {
-  'use strict';
-
-  angular.module('app').controller('ContactController', ContactController);
-
-  ContactController.$inject = ['$rootScope', '$stateParams', '$uibModalInstance', 'contact', 'user', 'userId'];
-
-  function ContactController($rootScope, $stateParams, $uibModalInstance, contact, user, userId) {
-
-    var hostName = $stateParams.userId;
-
-    var vm = this;
-    vm.status = {};
-    vm.place = '';
-    vm.date = new Date();
-    vm.openCalendar = openCalendar;
-    vm.cancel = cancel;
-    vm.ok = ok;
-
-    activate();
-
-    function activate() {
-      vm.status.opened = false;
-    }
-
-    function openCalendar($event) {
-      vm.status.opened = true;
-    }
-
-    function cancel() {
-      $uibModalInstance.dismiss('cancel');
-    }
-
-    function ok() {
-      userId.get(hostName).$loaded().then(function (userId) {
-        var hostId = userId.$value;
-        var guestId = $rootScope.statuses.userId;
-        var contactData = {
-          place: vm.place,
-          date: vm.date.toString(),
-          host: hostId,
-          guest: guestId
-        };
-        contact.add(contactData).then(function (ref) {
-          var notificationData = {
-            from: guestId,
-            contactId: ref.key(),
-            created: new Date().toString()
-          };
-          user.addNotification(hostName, notificationData).then(function (ref) {
-            $uibModalInstance.close();
-          }, function (error) {
-            $uibModalInstance.dismiss(error);
-          });
-        }, function (error) {
-          $uibModalInstance.dismiss(error);
-        });
-      });
-    }
-  }
-})();
-
-(function () {
-  'use strict';
-
-  angular.module('app').controller('HostsController', HostsController);
-
-  HostsController.$inject = ['$interval', '$q', '$rootScope', '$stateParams', '$uibModal', 'currentAuth', 'data', 'language', 'photo', 'Photo', 'toastr', 'user', 'utility'];
-
-  function HostsController($interval, $q, $rootScope, $stateParams, $uibModal, currentAuth, data, language, photo, Photo, toastr, user, utility) {
-
-    var _userName = $stateParams.userId;
-
-    var vm = this;
-    vm.isMe = data.me.name === _userName;
-    vm.isFavorited = false;
-    vm.user = {};
-    vm.userMessages = [];
-    vm.addFavorite = addFavorite;
-    vm.removeFavorite = removeFavorite;
-    vm.showModal = showModal;
-
-    activate();
-
-    function activate() {
-      getUserData().then(function () {
-        checkFavorited();
-        vm.user.getPhotos();
-        vm.user.getLanguages();
-        // vm.user.age = _.isUndefined(user.birth) ? null : Math.floor(moment(new Date()).diff(moment(user.birth), 'years', true));
-      });
-    }
-
-    function getUserData() {
-      var deferred = $q.defer();
-      utility.getUserByName(_userName).then(function (user) {
-        vm.user = user;
-        return deferred.resolve();
-      });
-      return deferred.promise;
-    }
-
-    function checkFavorited() {
-      user.get($rootScope.statuses.userId).$loaded().then(function (user) {
-        if (_.isUndefined(user.favorites)) {
-          vm.isFavorited = false;
-          return;
-        }
-        vm.isFavorited = !_.isUndefined(user.favorites[vm.user.$id]);
-      });
-    }
-
-    function addFavorite() {
-      user.addFavorite(vm.user.$id).then(function (ref) {
-        user.addFavoritedCount(vm.user.$id).then(function (ref) {
-          vm.isFavorited = true;
-          return toastr.success('お気に入りに追加しました');
-        });
-      });
-    }
-
-    function removeFavorite() {
-      user.removeFavorite(vm.user.$id).then(function (ref) {
-        user.removeFavoritedCount(vm.user.$id).then(function (ref) {
-          vm.isFavorited = false;
-          return toastr.success('お気に入りを解除しました');
-        });
-      });
-    }
-
-    function showModal() {
-      var modalInstance = $uibModal.open({
-        templateUrl: 'app/hosts/contact.html',
-        controller: 'ContactController',
-        controllerAs: 'contact'
-      });
-      modalInstance.result.then(
-        function () {
-          return toastr.success('送信しました');
-        },
-        function (reason) {
-          if (reason === 'cancel') return;
-          return toastr.error('送信できませんでした', 'Error');
-        }
-      );
-    }
-  }
-})();
-
-(function () {
-  'use strict';
-
-  angular.module('app.hosts').config(route);
-
-  route.$inject = ['$stateProvider'];
-
-  function route($stateProvider) {
-    $stateProvider
-      .state('hosts', {
-        url: '/:userId',
-        controller: 'HostsController',
-        controllerAs: 'hosts',
-        templateUrl: 'app/hosts/hosts.html',
-        resolve: {
-          currentAuth: getCurrentAuth
-        }
-      })
-      .state('accept', {
-        url: '/accept/:contactId::notificationId',
-        controller: 'AcceptController',
-        controllerAs: 'accept',
-        templateUrl: 'app/hosts/accept.html',
-        resolve: {
-          currentAuth: getCurrentAuth
-        }
-      });
-  }
-
-  getCurrentAuth.$inject = ['auth'];
-
-  function getCurrentAuth(auth) {
-    return auth.check(true);
-  }
-})();
-
-(function () {
-  'use strict';
-
-  angular.module('app').directive('header', header);
-
-  header.$inject = [];
-
-  function header() {
-    return {
-      templateUrl: 'app/layout/header.html',
-      scope: {},
-      controller: HeaderController,
-      controllerAs: 'header',
-      bindToController: true
-    };
-  }
-
-  HeaderController.$inject = ['$rootScope', '$scope', '$state', '$translate', 'auth', 'data', 'User'];
-
-  function HeaderController($rootScope, $scope, $state, $translate, auth, data, User) {
-
-    var vm = this;
-    vm.rootScope = $rootScope;
-    vm.data = data;
-    vm.notifications = [];
-    vm.changeLocale = changeLocale;
-    vm.onNotificationClick = onNotificationClick;
-    vm.logout = logout;
-    vm.isLoggedIn = isLoggedIn;
-
-    activate();
-
-    function activate() {
-      $scope.$watch('header.data.me', function (me) {
-        angular.forEach(me.notifications, function (notification, notificationId) {
-          notification.id = notificationId;
-          vm.notifications.push(notification);
-          notification.sender = new User(notification.from);
-        });
-      });
-    }
-
-    function changeLocale(langKey) {
-      $translate.use(langKey);
-    }
-
-    function onNotificationClick(notification) {
-      $state.go('accept', {
-        contactId: notification.contactId,
-        notificationId: notification.id
-      });
-    }
-
-    function isLoggedIn() {
-      return _.size(data.me);
-    }
-
-    function logout() {
-      auth.logout();
-      $state.go('spots');
-    }
-  }
-})();
-
-(function () {
-  'use strict';
-
-  angular.module('app').directive('chat', chat);
-
-  chat.$inject = [];
-
-  function chat() {
-    return {
-      templateUrl: 'app/room/chat.html',
-      scope: {
-        roomId: '='
-      },
-      controller: ChatController,
-      controllerAs: 'chat',
-      bindToController: true
-    };
-  }
-
-  ChatController.$inject = ['$rootScope', 'room', 'user'];
-
-  function ChatController($rootScope, room, user) {
-
-    var vm = this;
-    vm.isMessagesLoaded = false;
-    vm.postMessage = postMessage;
-
-    activate();
-
-    function activate() {
-      getRoom();
-      room.getMessages(vm.roomId).$watch(getRoom);
-    }
-
-    function getRoom() {
-      room.get(vm.roomId).$loaded().then(function (room) {
-        vm.messages = room.messages;
-        getYourData(room);
-        angular.forEach(room.messages, function (message) {
-          message.isMe = message.userId === $rootScope.statuses.userId;
-        });
-        vm.isMessagesLoaded = true;
-      });
-    }
-
-    function getYourData(room) {
-      angular.forEach(room, function (value, key) {
-        if (key !== 'guest' && key !== 'host') return;
-        if (value === $rootScope.statuses.userId) return;
-        user.get(value).$loaded().then(function (user) {
-          vm.you = user;
-        });
-      });
-    }
-
-    function postMessage() {
-      var postData = {
-        message: vm.newMessage,
-        userId: $rootScope.statuses.userId
-      };
-      room.postMessage(vm.roomId, postData).then(function (ref) {
-        vm.newMessage = '';
-      });
-    }
-  }
-})();
-
-(function () {
-  'use strict';
-
-  angular.module('app.room').controller('RoomController', RoomController);
-
-  RoomController.$inject = ['$rootScope', '$stateParams', 'data', 'photo', 'room', 'Room', 'user', 'User'];
-
-  function RoomController($rootScope, $stateParams, data, photo, room, Room, user, User) {
-
-    var id = $stateParams.roomId;
-
-    var vm = this;
-    vm.room = new Room(id);
-
-    activate();
-
-    function activate() {
-      vm.room.$loaded(function (room) {
-        angular.forEach(['guest', 'host'], function (type) {
-          if (room[type] === data.me.$id) {
-            room[type] = data.me;
-            room.me = type;
-          } else {
-            room[type] = new User(room[type]);
-          }
-        });
-      });
-      vm.schedule = [];
-      setCalendarConfig();
-      vm.schedule.push([{
-        title: 'Open Sesame',
-        start: new Date(2015, 11, 28),
-        // end: new Date(2015, 11, 29),
-        allDay: true,
-        className: ['openSesame']
-      }]);
-    }
-
-    function setCalendarConfig() {
-      vm.uiConfig = {
-        calendar: {
-          height: 500,
-          editable: true,
-          header: {
-            left: 'title',
-            center: '',
-            right: 'prev,today,next'
-          }
-        }
-      };
-    }
-  }
-})();
-
-(function () {
-  'use strict';
-
-  angular.module('app.room').config(route);
-
-  route.$inject = ['$stateProvider'];
-
-  function route($stateProvider) {
-    $stateProvider
-      .state('room', {
-        url: '/rooms/:roomId',
-        controller: 'RoomController',
-        controllerAs: 'room',
-        templateUrl: 'app/room/room.html',
-        resolve: {
-          currentAuth: getCurrentAuth
-        }
-      });
-  }
-
-  getCurrentAuth.$inject = ['auth'];
-
-  function getCurrentAuth(auth) {
-    return auth.check(true);
-  }
-})();
-
-(function () {
-  'use strict';
-
-  angular.module('app.spots').controller('SpotsController', SpotsController);
-
-  SpotsController.$inject = ['$q', '$rootScope', '$scope', 'currentAuth', 'language', 'photo', 'spot', 'uiGmapGoogleMapApi', 'user'];
-
-  function SpotsController($q, $rootScope, $scope, currentAuth, language, photo, spot, uiGmapGoogleMapApi, user) {
-
-    var _bounds = {};
-    var _isDragging = false;
-
-    var vm = this;
-    vm.me = currentAuth;
-    vm.isLoading = false;
-    vm.map = {};
-    vm.control = {};
-    vm.events = {};
-    vm.markers = [];
-    vm.searchbox = {};
-    vm.languages = {};
-    vm.getSpots = getSpots;
-
-    activate();
-
-    function activate() {
-      setGoogleMap();
-      setSearchbox();
-      getLanguages();
-    }
-
-    function setGoogleMap() {
-      setMapHeight();
-      vm.map.center = {
-        latitude: 0,
-        longitude: 0
-      };
-      vm.map.zoom = 3;
-      vm.map.events = {
-        bounds_changed: boundsChanged,
-        drag: drag,
-        dragend: dragend
-      };
-      vm.map.bounds = {
-        northeast: {
-          latitude: 180,
-          longitude: 180
-        },
-        southwest: {
-          latitude: -180,
-          longitude: -180
-        }
-      };
-    }
-
-    function setMapHeight() {
-      var contentHeight = window.innerHeight - 58 - 25;
-      angular.element(document).find('.angular-google-map-container').css({ height: contentHeight + 'px' });
-    }
-
-    function boundsChanged(map) {
-      if (_isDragging) return;
-      if (vm.isLoading) return;
-      getBounds(map);
-      getSpots();
-    }
-
-    function drag() {
-      _isDragging = true;
-    }
-
-    function dragend(map) {
-      _isDragging = false;
-      if (vm.isLoading) return;
-      getBounds(map);
-      getSpots();
-    }
-
-    function getBounds(map) {
-      _bounds = {
-        ne: {
-          lat: map.getBounds().getNorthEast().lat(),
-          lng: map.getBounds().getNorthEast().lng()
-        },
-        sw: {
-          lat: map.getBounds().getSouthWest().lat(),
-          lng: map.getBounds().getSouthWest().lng()
-        }
       };
     }
 
@@ -2122,200 +2347,21 @@
       vm.map.zoom = 17;
     }
 
-    function getSpots() {
-      vm.isLoading = true;
-      vm.markers = [];
-      var locations = [];
-      angular.forEach(_bounds, function (points) {
-        var location = [];
-        angular.forEach(points, function (point) {
-          location.push(point);
-        });
-        locations.push(location);
-      });
-      var distance = spot.distance(locations);
-      var radius = distance / 3;
-      spot.query(_.values(vm.map.center), radius).then(getSpotsSuccess, getSpotFailed);
-    }
-
-    function getSpotsSuccess(spots) {
-      var promises = [];
-      angular.forEach(spots, function (spot, index) {
-        promises.push((function (spot, index) {
-          setSpotData(spot, index);
-        })(spot, index));
-      });
-      $q.all(promises).then(function () {
-        vm.isLoading = false;
-      });
-    }
-
-    function getSpotFailed(error) {
-      vm.isLoading = false;
-    }
-
-    function setSpotData(spot, index) {
-      var deferred = $q.defer();
-      var newSpot = {};
-      var ids = spot.id.split('::');
-      var userId = ids[0];
-      newSpot.id = ids[1];
-      newSpot.latitude = spot.location[0];
-      newSpot.longitude = spot.location[1];
-      newSpot.show = true;
-      newSpot.events = {
-        mouseover: function (marker) {
-          newSpot.show = true;
+    function addSpot() {
+      var spotKey = [data.me.$id, photoId].join('::');
+      spot.add(spotKey, _.values(_spot)).then(
+        function () {
+          $uibModalInstance.close();
         },
-        mouseout: function (marker) {
-          newSpot.show = false;
+        function (error) {
+          $uibModalInstance.dismiss(error);
         }
-      };
-      newSpot.photos = [];
-      var photoKey = userId + '/' + newSpot.id;
-      photo.get(photoKey).$loaded().then(function (photo) {
-        newSpot.photos.push(photo);
-        photo.user = {};
-        return user.get(userId).$loaded().then(function (user) {
-          photo.user = user;
-          newSpot.userId = user.name;
-          var keepGoing = true;
-          angular.forEach(vm.languages, function (language) {
-            if (!keepGoing) return;
-            if (!language.checked) return;
-            if (!_.has(newSpot.photos[0].user.languages, language.$id)) return;
-            vm.markers.push(newSpot);
-            keepGoing = false;
-          });
-          return deferred.resolve();
-        });
-      });
-      return deferred.promise;
+      );
     }
 
-    function getLanguages() {
-      language.getAll().$loaded().then(function (languages) {
-        vm.languages = languages;
-        angular.forEach(languages, function (language) {
-          language.checked = true;
-        });
-      });
+    function cancel() {
+      $uibModalInstance.dismiss('cancel');
     }
-  }
-})();
-
-(function () {
-  'use strict';
-
-  angular.module('app.spots').config(route);
-
-  route.$inject = ['$stateProvider'];
-
-  function route($stateProvider) {
-    $stateProvider
-      .state('spots', {
-        url: '/',
-        controller: 'SpotsController',
-        controllerAs: 'spots',
-        templateUrl: 'app/spots/spots.html',
-        resolve: {
-          currentAuth: getCurrentAuth
-        }
-      });
-  }
-
-  getCurrentAuth.$inject = ['auth'];
-
-  function getCurrentAuth(auth) {
-    return auth.check(false);
-  }
-})();
-
-(function () {
-  'use strict';
-
-  angular.module('app').controller('TicketsAddController', TicketsAddController);
-
-  TicketsAddController.$inject = ['$state', 'ticket'];
-
-  function TicketsAddController($state, ticket) {
-    var vm = this;
-    vm.add = add;
-
-    activate();
-
-    function activate() {}
-
-    function add() {
-      ticket.$add({
-        departureDate: vm.departureDate,
-        arrivedDate: vm.arrivedDate,
-        destination: vm.destination,
-        languages: vm.languages,
-        message: vm.message
-      }).then(function () {
-        $state.go('tickets');
-      });
-    }
-  }
-})();
-
-(function () {
-  'use strict';
-
-  angular.module('app').controller('TicketsController', TicketsController);
-
-  TicketsController.$inject = ['ticket'];
-
-  function TicketsController(ticket) {
-    var vm = this;
-    vm.tickets = [];
-
-    activate();
-
-    function activate() {
-      vm.tickets = ticket;
-    }
-  }
-})();
-
-(function () {
-  'use strict';
-
-  angular.module('app.tickets').config(route);
-
-  route.$inject = ['$stateProvider'];
-
-  function route($stateProvider) {
-    $stateProvider
-      .state('tickets', {
-        url: '/tickets',
-        controller: 'TicketsController',
-        controllerAs: 'tickets',
-        templateUrl: 'app/tickets/tickets.html',
-        resolve: {
-          currentAuth: getCurrentAuth
-        }
-      })
-      .state('tickets.add', {
-        url: '/add',
-        views: {
-          "@": {
-            controller: 'TicketsAddController',
-            controllerAs: 'ticketsAdd',
-            templateUrl: 'app/tickets/tickets-add.html'
-          }
-        },
-        resolve: {
-          currentAuth: getCurrentAuth
-        }
-      });
-  }
-
-  getCurrentAuth.$inject = ['auth'];
-
-  function getCurrentAuth(auth) {
-    return auth.check(true);
   }
 })();
 

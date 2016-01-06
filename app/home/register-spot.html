@@ -2,7 +2,8 @@
   <h3 class="modal-title">スポット登録</h3>
 </div>
 <div class="modal-body">
-  <ui-gmap-google-map center="registerSpot.map.center" zoom="registerSpot.map.zoom" pan="false" events="registerSpot.map.events" control="registerSpot.map.control">
+  <ui-gmap-google-map center="registerSpot.map.center" zoom="registerSpot.map.zoom" pan="false" events="registerSpot.map.events" control="registerSpot.map.control" bounds="registerSpot.map.bounds">
+    <ui-gmap-search-box template="registerSpot.searchbox.template" events="registerSpot.searchbox.events" position="registerSpot.searchbox.position"></ui-gmap-search-box>
     <ui-gmap-marker idKey="registerSpot.map.marker.key" coords="registerSpot.map.marker.coords" options="registerSpot.map.marker.options" events="registerSpot.map.marker.events"></ui-gmap-marker>
   </ui-gmap-google-map>
 </div>

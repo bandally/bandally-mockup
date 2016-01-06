@@ -7052,6 +7052,26 @@ img {
   height: 100%;
 }
 
+.page-home .modal-body .angular-google-map .angular-google-map-container .searchbox {
+  margin: 10px;
+  direction: ltr;
+  overflow: hidden;
+  position: relative;
+  color: #565656;
+  font-family: Roboto, Arial, sans-serif;
+  -webkit-user-select: none;
+  font-size: 11px;
+  padding: 8px;
+  border: 0;
+  border-radius: 2px;
+  -webkit-background-clip: padding-box;
+  box-shadow: rgba(0, 0, 0, 0.298039) 0px 1px 4px -1px;
+  min-width: 44px;
+  background-color: white;
+  background-clip: padding-box;
+  min-width: 360px;
+}
+
 .page-hosts .carousel {
   margin: 0 -40px 20px;
   position: relative;
