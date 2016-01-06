@@ -2143,16 +2143,23 @@
     function placesChanged(searchBox) {
       var place = searchBox.getPlaces();
       if (!place || place === 'undefined' || place.length === 0) return;
-      vm.map.bounds = {
-        northeast: {
-          latitude: place[0].geometry.viewport.getNorthEast().lat(),
-          longitude: place[0].geometry.viewport.getNorthEast().lng()
-        },
-        southwest: {
-          latitude: place[0].geometry.viewport.getSouthWest().lat(),
-          longitude: place[0].geometry.viewport.getSouthWest().lng()
-        }
-      };
+      if (_.has(place[0].geometry, 'viewport')) {
+        vm.map.bounds = {
+          northeast: {
+            latitude: place[0].geometry.viewport.getNorthEast().lat(),
+            longitude: place[0].geometry.viewport.getNorthEast().lng()
+          },
+          southwest: {
+            latitude: place[0].geometry.viewport.getSouthWest().lat(),
+            longitude: place[0].geometry.viewport.getSouthWest().lng()
+          }
+        };
+      }
+      vm.map.center = {
+        latitude: place[0].geometry.location.lat(),
+        longitude: place[0].geometry.location.lng()
+      }
+      vm.map.zoom = 17;
     }
 
     function getSpots() {
