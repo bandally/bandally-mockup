@@ -3,9 +3,8 @@
 
   angular.module('app', [
     'ngAnimate',
-    'ngTouch',
     'ngCookies',
-    'angular-carousel',
+    'ngMaterial',
     'ui.router',
     'ui.bootstrap',
     'uiGmapgoogle-maps',
@@ -1759,7 +1758,7 @@
     }
 
     function checkFavorited() {
-      user.get($rootScope.statuses.userId).$loaded().then(function (user) {
+      vm.user.$loaded(function (user) {
         if (_.isUndefined(user.favorites)) {
           vm.isFavorited = false;
           return;
