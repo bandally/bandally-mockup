@@ -226,12 +226,12 @@
 
   angular.module('app.core').factory('auth', auth);
 
-  auth.$inject = ['$cookies', '$firebaseAuth', '$q', '$rootScope', 'account', 'cache', 'config', 'data', 'User', 'user', 'userId'];
+  auth.$inject = ['$firebaseAuth', '$firebaseObject', '$q', '$rootScope', 'account', 'cache', 'config', 'data', 'Transaction', 'User', 'user', 'userId'];
 
-  function auth($cookies, $firebaseAuth, $q, $rootScope, account, cache, config, data, User, user, userId) {
+  function auth($firebaseAuth, $firebaseObject, $q, $rootScope, account, cache, config, data, Transaction, User, user, userId) {
 
     var _isInitialized = false;
-    var _newAuth = {};
+    var _authData = {};
     var _newUser = {};
     var _defferd;
 
@@ -264,14 +264,7 @@
         return _defferd.promise;
       }
       data.me = new User(authData.uid);
-      user.get(authData.uid).$loaded().then(function (me) {
-        $rootScope.me = me;
-        angular.merge($rootScope, {
-          statuses: {
-            userId: authData.uid,
-            userName: user.name
-          }
-        });
+      data.me.$loaded(function () {
         return _defferd.resolve(authData);
       });
       return _defferd.promise;
@@ -291,54 +284,56 @@
       var scope = ['public_profile', 'email'];
       return firebase.$authWithOAuthPopup('facebook', {
         scope: scope.join()
-      }).then(fbLoginSuccess).catch(authenticationFailed);
+      }).then(fbLoginSuccess).catch(authFailed);
     }
 
     function fbLoginWithToken() {
       return firebase
         .$authWithOAuthToken('facebook', cache.get())
         .then(fbLoginSuccess)
-        .catch(authenticationFailed);
+        .catch(authFailed);
     }
 
     function fbLoginSuccess(authData) {
-      _newAuth = authData;
-      cache.put(_newAuth.facebook.accessToken);
-      return account.save(_newAuth.uid, _newAuth).then(accountSaveSuccess, authenticationFailed);
-    }
-
-    function accountSaveSuccess(ref) {
-      return user.exists(_newAuth.uid).then(userExistsSuccess, userExistsFailed);
-    }
-
-    function userExistsSuccess(userData) {
-      angular.merge($rootScope, {
-        statuses: {
-          userId: _newAuth.uid,
-          userName: userData.name
+      _authData = authData;
+      cache.put(_authData.facebook.accessToken);
+      _newUser = new User(_authData.uid);
+      _newUser.$loaded(function (user) {
+        if (_.isNull(user.$value)) {
+          return saveAccountAndUser();
+        } else {
+          return updateAccount();
         }
       });
-      return _defferd.resolve(userData);
     }
 
-    function userExistsFailed() {
-      _newUser.name = _newAuth.facebook.email ? _newAuth.facebook.email.split('@')[0] : null;
-      _newUser.fullName = _newAuth.facebook.displayName || null;
-      _newUser.email = _newAuth.facebook.email || null;
-      _newUser.gender = _newAuth.facebook.cachedUserProfile.gender || null;
-      _newUser.imageUrl = _newAuth.facebook.profileImageURL || null;
-      return user.save(_newAuth.uid, _newUser).then(userSaveSuccess, authenticationFailed);
+    function updateAccount() {
+      var userAccount = $firebaseObject(firebaseRef.child('accounts/' + _authData.uid));
+      angular.merge(userAccount, _authData);
+      userAccount.$save().then(authSucceeded, authFailed);
     }
 
-    function userSaveSuccess(ref) {
-      return userId.save(_newUser.name, _newAuth.uid).then(userIdSaveSuccess, authenticationFailed);
+    function saveAccountAndUser() {
+      var saveData = {};
+      var saveKey1 = 'accounts/' + _authData.uid;
+      var saveKey2 = 'users/' + _authData.uid;
+      saveData[saveKey1] = _authData;
+      saveData[saveKey2] = {
+        name    : _authData.facebook.email ? _authData.facebook.email.split('@')[0] : null,
+        fullName: _authData.facebook.displayName || null,
+        email   : _authData.facebook.email || null,
+        gender  : _authData.facebook.cachedUserProfile.gender || null,
+        imageUrl: _authData.facebook.profileImageURL || null
+      };
+      Transaction.save(saveData).then(authSucceeded, authFailed);
     }
 
-    function userIdSaveSuccess(ref) {
+    function authSucceeded() {
+      data.me = new User(_authData.uid);
       return _defferd.resolve();
     }
 
-    function authenticationFailed() {
+    function authFailed() {
       return _defferd.reject();
     }
 
@@ -676,9 +671,9 @@
     };
   }
 
-  LoginButtonsController.$inject = ['$cookies', '$rootScope', '$state', 'account', 'auth', 'toastr', 'user'];
+  LoginButtonsController.$inject = ['$state', 'auth', 'toastr'];
 
-  function LoginButtonsController($cookies, $rootScope, $state, account, auth, toastr, user) {
+  function LoginButtonsController($state, auth, toastr) {
 
     var vm = this;
     vm.fbLogin = fbLogin;
@@ -2065,15 +2060,14 @@
 
   angular.module('app.spots').controller('SpotsController', SpotsController);
 
-  SpotsController.$inject = ['$q', '$rootScope', '$scope', 'currentAuth', 'language', 'photo', 'spot', 'uiGmapGoogleMapApi', 'user'];
+  SpotsController.$inject = ['$q', 'language', 'photo', 'spot', 'uiGmapGoogleMapApi', 'user', 'User'];
 
-  function SpotsController($q, $rootScope, $scope, currentAuth, language, photo, spot, uiGmapGoogleMapApi, user) {
+  function SpotsController($q, language, photo, spot, uiGmapGoogleMapApi, user, User) {
 
     var _bounds = {};
     var _isDragging = false;
 
     var vm = this;
-    vm.me = currentAuth;
     vm.isLoading = false;
     vm.map = {};
     vm.control = {};
